@@ -659,26 +659,39 @@ auth.onAuthStateChanged(async user => {
 // Write own entry to /directory/{uid} — readable by anyone logged in
 async function registerInDirectory() {
   try {
-    await db.collection('directory').doc(currentUser.uid).set({
-      uid: currentUser.uid,
-      name: currentUserName,
-      email: currentUser.email
+    // Reload user to make sure displayName is fresh
+    await currentUser.reload();
+    const freshUser = auth.currentUser;
+    const name = freshUser.displayName || currentUserName;
+    await db.collection('directory').doc(freshUser.uid).set({
+      uid: freshUser.uid,
+      name: name,
+      email: freshUser.email || ''
     });
-  } catch(e) { console.warn('registerInDirectory:', e); }
+    console.log('Registered in directory as:', name);
+  } catch(e) {
+    console.error('registerInDirectory failed:', e.code, e.message);
+  }
 }
 
 // Read /directory, find anyone who isn't me
 async function findPartner() {
   try {
     const snap = await db.collection('directory').get();
+    console.log('Directory docs found:', snap.docs.length);
     for (const d of snap.docs) {
+      console.log('Directory entry:', d.id, d.data().name);
       if (d.id !== currentUser.uid) {
         partnerUid = d.id;
         partnerName = d.data().name || (currentUserName === 'Harsha' ? 'Laavanya' : 'Harsha');
+        console.log('Partner found:', partnerName, partnerUid);
         break;
       }
     }
-  } catch(e) { console.warn('findPartner:', e); }
+    if (!partnerUid) console.warn('No partner found in directory yet.');
+  } catch(e) {
+    console.error('findPartner failed:', e.code, e.message);
+  }
 }
 
 function updateSwitcher() {
