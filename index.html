@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -641,6 +640,8 @@ auth.onAuthStateChanged(async user => {
     S.compOpen = S.settings.showCompleted || false;
     syncCalToDate();
 
+    // Register yourself in the shared directory so your partner can find you
+    await registerInDirectory();
     await findPartner();
     await prefetchTasks(viewingUid);
     subscribeToDate(S.date);
@@ -655,18 +656,25 @@ auth.onAuthStateChanged(async user => {
   }
 });
 
+// Write own entry to /directory/{uid} — readable by anyone logged in
+async function registerInDirectory() {
+  try {
+    await db.collection('directory').doc(currentUser.uid).set({
+      uid: currentUser.uid,
+      name: currentUserName,
+      email: currentUser.email
+    });
+  } catch(e) { console.warn('registerInDirectory:', e); }
+}
+
+// Read /directory, find anyone who isn't me
 async function findPartner() {
   try {
-    const snap = await db.collection('users').get();
+    const snap = await db.collection('directory').get();
     for (const d of snap.docs) {
       if (d.id !== currentUser.uid) {
         partnerUid = d.id;
-        try {
-          const prof = await db.collection('users').doc(d.id).collection('profile').doc('info').get();
-          partnerName = prof.exists ? prof.data().name : (currentUserName === 'Harsha' ? 'Laavanya' : 'Harsha');
-        } catch(e) {
-          partnerName = currentUserName === 'Harsha' ? 'Laavanya' : 'Harsha';
-        }
+        partnerName = d.data().name || (currentUserName === 'Harsha' ? 'Laavanya' : 'Harsha');
         break;
       }
     }
