@@ -336,7 +336,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 </head>
 <body>
 
-<div class="auth-screen" id="authScreen">
+<div class="auth-screen hidden" id="authScreen">
   <div class="auth-card">
     <div class="auth-logo">Task Planner</div>
     <div class="auth-sub">Plan your day, share with anyone</div>
@@ -630,29 +630,23 @@ auth.onAuthStateChanged(async user=>{
     const name=user.displayName||'User',code=makeCode(user.uid);
     me={uid:user.uid,name,code};
     viewUid=user.uid;viewName=name;isReadOnly=false;
-    document.getElementById('authScreen').style.display='none';
+    document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
     loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted===true;syncCalToDate();
-    // Register in directory (non-blocking)
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
-    // Load connections first (needed for sidebar)
     await loadConnections();
-    // Render immediately with empty cache — feels instant
     render();
-    // Subscribe to today for self — snapshot fires quickly with cached Firestore data
     subToDateForUser(me.uid,S.date);
-    // Prefetch ALL users in background simultaneously (non-blocking)
     const allUids=[me.uid,...connections.map(c=>c.uid)];
     allUids.forEach(uid=>{
       prefetchUser(uid).then(()=>{
         subToDateForUser(uid,S.date);
-        // If currently viewing this user, update the UI
         if(viewUid===uid){renderTasks();renderProgress();renderCal();}
       });
     });
   }else{
     me=null;connections=[];
-    document.getElementById('authScreen').style.display='flex';
+    document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appShell').classList.add('hidden');
     Object.values(userSubs).forEach(subs=>Object.values(subs).forEach(unsub=>unsub()));
     Object.keys(userSubs).forEach(k=>delete userSubs[k]);
