@@ -661,11 +661,6 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 <script>
 firebase.initializeApp({apiKey:"AIzaSyBeasVJq3ncaHeB-3iLDSOq3d89VQVPhts",authDomain:"planner-438ee.firebaseapp.com",projectId:"planner-438ee",storageBucket:"planner-438ee.firebasestorage.app",messagingSenderId:"19688161262",appId:"1:19688161262:web:b3b99ae4e52b58a3c818ff"});
 const auth=firebase.auth(),db=firebase.firestore();
-// Enable offline persistence — reads from local cache instantly, syncs in background
-db.enablePersistence({synchronizeTabs:true}).catch(e=>{
-  if(e.code==='failed-precondition'){console.warn('Persistence unavailable: multiple tabs open');}
-  else if(e.code==='unimplemented'){console.warn('Persistence not supported in this browser');}
-});
 let me=null,connections=[],viewUid=null,viewName='',isReadOnly=false;
 // Per-user caches and listeners — key is uid
 const userCache={};    // uid -> { dateKey -> tasks[] }
