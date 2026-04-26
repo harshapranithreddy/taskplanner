@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Task Planner</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/harshapranithreddy/taskplanner/main/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -55,22 +56,29 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 .connections-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
 .conn-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r-sm);border:1px solid transparent;cursor:pointer;transition:all .15s;background:transparent}
 .conn-item:hover{background:var(--bg);border-color:var(--border)}
-.conn-item.active-view{background:var(--blue-s);border-color:var(--blue-b)}
+.conn-item.active-view{background:var(--bg);border-color:var(--border-med)}
 .conn-item.mine-item{background:var(--bg);border-color:var(--border)}
 .conn-item.mine-item.active-view{background:var(--text);border-color:var(--text)}
 .conn-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:rgba(0,0,0,0.06);color:var(--text2)}
-.conn-item.active-view .conn-avatar{background:var(--blue);color:#fff}
+.conn-item.active-view .conn-avatar{background:rgba(0,0,0,0.1);color:var(--text)}
 .conn-item.mine-item.active-view .conn-avatar{background:rgba(255,255,255,0.2);color:#fff}
 .conn-name{font-size:12px;font-weight:500;color:var(--text2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.conn-item.active-view .conn-name{color:var(--blue);font-weight:600}
+.conn-item.active-view .conn-name{color:var(--text);font-weight:600}
 .conn-item.mine-item.active-view .conn-name{color:#fff}
 .conn-badge{font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:99px;padding:1px 6px;flex-shrink:0}
-.conn-item.active-view .conn-badge{background:var(--blue-s);border-color:var(--blue-b);color:var(--blue)}
+.conn-item.active-view .conn-badge{background:rgba(0,0,0,0.06);border-color:var(--border-med);color:var(--text)}
 .conn-item.mine-item.active-view .conn-badge{background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.3);color:#fff}
-.conn-remove{width:20px;height:20px;border:none;background:none;cursor:pointer;color:var(--text3);border-radius:4px;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .12s;flex-shrink:0}
-.conn-item:hover .conn-remove{opacity:1}
+.conn-remove{width:20px;height:20px;border:none;background:none;cursor:pointer;color:var(--text3);border-radius:4px;display:flex;align-items:center;justify-content:center;opacity:1;transition:all .12s;flex-shrink:0}
 .conn-remove:hover{background:var(--red-s);color:var(--red)}
 .conn-remove svg{width:11px;height:11px;pointer-events:none}
+/* invite code dropdown */
+.invite-section{margin-bottom:14px}
+.invite-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;background:var(--bg);cursor:pointer;font-family:'Instrument Sans',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text2);transition:all .15s}
+.invite-toggle:hover{background:var(--white);border-color:var(--border-med)}
+.invite-toggle svg{width:12px;height:12px;transition:transform .2s;flex-shrink:0}
+.invite-toggle.open svg{transform:rotate(180deg)}
+.invite-body{border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r-sm) var(--r-sm);padding:12px;background:var(--white);display:none}
+.invite-body.open{display:block}
 .add-conn-wrap{margin-bottom:14px}
 .add-conn-row{display:flex;gap:6px}
 .add-conn-input{flex:1;border:1px solid var(--border);border-radius:var(--r-xs);padding:7px 10px;font-family:'Instrument Sans',sans-serif;font-size:13px;color:var(--text);background:var(--bg);outline:none;transition:border-color .15s;min-width:0;text-transform:uppercase}
@@ -123,9 +131,8 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 .open-sb-btn:hover{color:var(--text);border-color:var(--border-med)}
 .open-sb-btn svg{width:13px;height:13px}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);position:relative;min-width:0}
-.main-title{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;font-style:italic;color:var(--text);text-align:center;padding:22px 28px 0;flex-shrink:0;transition:color .2s}
-.main-title.readonly-title{color:var(--blue)}
-.readonly-notice{margin:8px 28px 0;background:var(--blue-s);border:1px solid var(--blue-b);border-radius:var(--r-xs);padding:8px 14px;font-size:12px;color:var(--blue);font-weight:500;text-align:center;display:none;flex-shrink:0}
+.main-title{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:300;font-style:italic;color:var(--text);text-align:center;padding:22px 28px 0;flex-shrink:0}
+.readonly-notice{margin:8px 28px 0;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-xs);padding:7px 14px;font-size:11px;color:var(--text3);font-weight:500;text-align:center;display:none;flex-shrink:0;letter-spacing:.02em}
 .readonly-notice.vis{display:block}
 .main-prog-wrap{padding:12px 28px 0;flex-shrink:0}
 .main-prog-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
@@ -286,23 +293,38 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
   :root{--sb:100%}
   body{overflow:auto}
   .shell{flex-direction:column;height:auto}
-  .sidebar{width:100%;height:auto;border-right:none;border-bottom:1px solid var(--border)}
-  .sidebar.collapsed{width:100%;height:0;border-bottom-color:transparent}
+  .sidebar{width:100%;height:auto;border-right:none;border-bottom:1px solid var(--border);flex-shrink:0}
+  .sidebar.collapsed{width:100%;height:0;border-bottom-color:transparent;overflow:hidden}
+  .sb-inner{padding:16px 14px}
   .main{overflow:visible;min-height:100vh}
-  .task-area{overflow:visible;padding:16px 16px 60px}
-  .inp-expand{margin:0 16px;grid-template-columns:1fr 1fr}
-  .topbar,.filterbar,.main-prog-wrap,.readonly-notice{padding-left:16px;padding-right:16px}
-  .main-title{padding-left:16px;padding-right:16px;font-size:32px;padding-top:16px}
+  .task-area{overflow:visible;padding:14px 14px 60px}
+  .inp-expand{margin:0 14px;grid-template-columns:1fr 1fr}
+  .topbar,.filterbar,.main-prog-wrap,.readonly-notice{padding-left:14px;padding-right:14px}
+  .main-title{padding-left:14px;padding-right:14px;font-size:30px;padding-top:14px}
   .set-panel{width:100%}
   .open-sb-btn{top:12px;left:10px}
   input,textarea,select{font-size:16px!important}
-  .f-btn{padding:7px 11px;font-size:12px}
-  .p-pill{padding:7px 11px;font-size:12px}
-  .mc-day{min-height:34px;font-size:12px}
+  .f-btn{padding:8px 12px;font-size:12px;min-height:36px}
+  .p-pill{padding:8px 12px;font-size:12px}
+  .mc-day{min-height:36px;font-size:12px}
   .card{padding:14px}
   .card-title{font-size:15px}
-  .btn-add{padding:10px 16px}
-  .filterbar{padding-top:10px;padding-bottom:10px}
+  .btn-add{padding:10px 16px;min-height:44px}
+  .filterbar{padding-top:10px;padding-bottom:10px;gap:6px}
+  /* connections - full tap area on mobile */
+  .conn-item{padding:12px 10px;min-height:48px}
+  .conn-name{font-size:13px}
+  .conn-avatar{width:32px;height:32px;font-size:12px}
+  .conn-remove{width:32px;height:32px}
+  /* nav arrows bigger on mobile */
+  .sb-arr{width:40px;height:40px}
+  .sb-arr svg{width:15px;height:15px}
+  /* date bigger */
+  .sb-date-big{font-size:32px}
+  /* two-col layout for connections on mobile */
+  .connections-list{gap:6px}
+  /* invite section full width */
+  .add-conn-input{font-size:16px!important}
 }
 </style>
 </head>
@@ -341,23 +363,8 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2L4 6l4 4"/></svg>
         </button>
       </div>
-      <div class="sb-section-lbl">Planners</div>
-      <div class="connections-list" id="connList"></div>
-      <div class="add-conn-wrap">
-        <div class="add-conn-row">
-          <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter invite code" maxlength="9" autocomplete="off" spellcheck="false">
-          <button class="add-conn-btn" id="addCodeBtn">Add</button>
-        </div>
-        <div class="add-conn-err" id="addCodeErr"></div>
-      </div>
-      <div class="my-code-wrap">
-        <div class="my-code-lbl">Your invite code</div>
-        <div class="my-code-row">
-          <span class="my-code-val" id="myCodeVal">----</span>
-          <button class="my-code-copy" id="copyCodeBtn">Copy</button>
-        </div>
-      </div>
-      <div class="sb-div"></div>
+
+      <!-- Date nav FIRST -->
       <div class="sb-date-label" id="sbDayLabel"></div>
       <div class="sb-date-big" id="sbDateBig"></div>
       <div class="sb-date-sub" id="sbDateSub"></div>
@@ -366,6 +373,8 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
         <button class="sb-arr" id="nextDay"><svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.5 3l4 3.5-4 3.5"/></svg></button>
         <button class="sb-today" id="jumpBtn">Jump to Today</button>
       </div>
+
+      <!-- Mini calendar SECOND -->
       <div class="mini-cal">
         <div class="mc-hdr">
           <div class="mc-month" id="mcMonthLbl"></div>
@@ -376,6 +385,36 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
         </div>
         <div class="mc-dow" id="mcDow"></div>
         <div class="mc-days" id="mcDays"></div>
+      </div>
+
+      <div class="sb-div"></div>
+
+      <!-- Planners THIRD -->
+      <div class="sb-section-lbl">Planners</div>
+      <div class="connections-list" id="connList"></div>
+
+      <!-- Invite code section as collapsible dropdown -->
+      <div class="invite-section">
+        <button class="invite-toggle" id="inviteToggle">
+          Invite Codes
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4l4 4 4-4"/></svg>
+        </button>
+        <div class="invite-body" id="inviteBody">
+          <div class="add-conn-wrap" style="margin-bottom:10px">
+            <div class="add-conn-row">
+              <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter invite code" maxlength="9" autocomplete="off" spellcheck="false">
+              <button class="add-conn-btn" id="addCodeBtn">Add</button>
+            </div>
+            <div class="add-conn-err" id="addCodeErr"></div>
+          </div>
+          <div class="my-code-wrap" style="margin-bottom:0">
+            <div class="my-code-lbl">Your invite code</div>
+            <div class="my-code-row">
+              <span class="my-code-val" id="myCodeVal">----</span>
+              <button class="my-code-copy" id="copyCodeBtn">Copy</button>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="sb-bottom">
         <button class="sb-action-btn" id="settingsBtn">
@@ -620,8 +659,8 @@ function renderConnList(){
 function renderViewCtrl(){
   const title=document.getElementById('mainTitle'),notice=document.getElementById('readonlyNotice'),tb=document.getElementById('topbarEl'),ex=document.getElementById('taskExpand');
   if(isReadOnly){
-    title.textContent=viewName+"'s Planner";title.classList.add('readonly-title');
-    notice.textContent='Viewing '+viewName+"'s planner (read only)";notice.classList.add('vis');
+    title.textContent=viewName+"'s Planner";title.classList.remove('readonly-title');
+    notice.textContent='Viewing '+viewName+"'s Planner";notice.classList.add('vis');
     tb.style.display='none';ex.classList.remove('open');ex.style.display='none';
   }else{
     title.textContent='Task Planner';title.classList.remove('readonly-title');
@@ -750,6 +789,10 @@ function isDismissed(k){try{return(JSON.parse(localStorage.getItem('planner:dis'
 function setDismissed(k){try{const o=JSON.parse(localStorage.getItem('planner:dis')||'{}');o[k]=1;localStorage.setItem('planner:dis',JSON.stringify(o));}catch{}}
 function exportDay(){const tasks=getTasks(S.date);if(!tasks.length){showToast('No tasks to export');return;}let txt='Tasks - '+fmtFull(parseKey(S.date))+'\n'+'-'.repeat(36)+'\n\n';const active=tasks.filter(t=>t.status!=='done'),done=tasks.filter(t=>t.status==='done');if(active.length){txt+='ACTIVE\n';active.forEach(t=>{txt+='  ['+(t.status==='inprogress'?'~':' ')+'] '+t.title;if(t.priority&&t.priority!=='none')txt+=' ['+t.priority+']';if(t.dueTime)txt+=' @ '+t.dueTime;if(t.category)txt+=' #'+t.category;txt+='\n';if(t.description)txt+='      '+t.description+'\n';});txt+='\n';}if(done.length){txt+='COMPLETED\n';done.forEach(t=>{txt+='  [v] '+t.title+'\n';});}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download='tasks-'+S.date+'.txt';a.click();showToast('Exported!');}
 function clearDay(){if(isReadOnly)return;if(!confirm('Clear all tasks for this day?'))return;const tasks=getTasks(S.date);cachedTasks[S.date]=[];renderTasks();renderProgress();tasks.forEach(t=>delTaskDB(t.id));showToast('Day cleared');}
+document.getElementById('inviteToggle').addEventListener('click',()=>{
+  const toggle=document.getElementById('inviteToggle'),body=document.getElementById('inviteBody');
+  toggle.classList.toggle('open');body.classList.toggle('open');
+});
 document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
 document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
