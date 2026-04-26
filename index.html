@@ -35,11 +35,85 @@
 /* ── DARK ── */
 [data-theme="dark"]{
   --bg:#0F0F0F;--white:#1A1A1A;
-  --border:rgba(255,255,255,0.08);--border-med:rgba(255,255,255,0.16);
-  --text:#EEECEA;--text2:#8A8A88;--text3:#555553;
+  --border:rgba(255,255,255,0.08);--border-med:rgba(255,255,255,0.18);
+  --text:#EEECEA;--text2:#9A9A98;--text3:#555553;
   --shadow-xs:0 1px 3px rgba(0,0,0,0.3);
   --shadow-sm:0 2px 8px rgba(0,0,0,0.4);
   --shadow-lg:0 12px 40px rgba(0,0,0,0.5),0 3px 8px rgba(0,0,0,0.3);
+  /* interactive accent — warm amber so buttons pop on dark */
+  --btn-bg:#C8853A;--btn-text:#fff;
+  --active-bg:#C8853A;--active-border:#C8853A;
+}
+/* ── MIDNIGHT ── */
+[data-theme="midnight"]{
+  --bg:#0D1117;--white:#161B22;
+  --border:rgba(100,140,255,0.1);--border-med:rgba(100,140,255,0.22);
+  --text:#CDD9F0;--text2:#6A85B0;--text3:#334466;
+  --shadow-xs:0 1px 3px rgba(0,0,0,0.4);
+  --shadow-sm:0 2px 8px rgba(0,0,0,0.5);
+  --shadow-lg:0 12px 40px rgba(0,0,0,0.6),0 3px 8px rgba(0,0,0,0.4);
+  /* interactive accent — soft indigo */
+  --btn-bg:#5B7FD4;--btn-text:#fff;
+  --active-bg:#5B7FD4;--active-border:#5B7FD4;
+}
+
+/* apply accent overrides for dark themes */
+[data-theme="dark"] .btn-add,
+[data-theme="dark"] .auth-btn,
+[data-theme="dark"] .sb-today,
+[data-theme="dark"] .add-conn-btn,
+[data-theme="dark"] .conn-item.mine-item.active-view,
+[data-theme="dark"] .f-btn.active,
+[data-theme="dark"] .chk.chkd,
+[data-theme="dark"] .mc-day.sel{background:var(--btn-bg)!important;border-color:var(--btn-bg)!important;color:var(--btn-text)!important}
+[data-theme="dark"] .invite-toggle{color:var(--text2)}
+[data-theme="dark"] .p-pill.sel-none{background:var(--btn-bg);border-color:var(--btn-bg);color:#fff}
+[data-theme="midnight"] .btn-add,
+[data-theme="midnight"] .auth-btn,
+[data-theme="midnight"] .sb-today,
+[data-theme="midnight"] .add-conn-btn,
+[data-theme="midnight"] .conn-item.mine-item.active-view,
+[data-theme="midnight"] .f-btn.active,
+[data-theme="midnight"] .chk.chkd,
+[data-theme="midnight"] .mc-day.sel{background:var(--btn-bg)!important;border-color:var(--btn-bg)!important;color:var(--btn-text)!important}
+[data-theme="midnight"] .p-pill.sel-none{background:var(--btn-bg);border-color:var(--btn-bg);color:#fff}
+[data-theme="rose"]{
+  --bg:#FDF5F5;--white:#FFFAFA;
+  --border:rgba(180,60,60,0.1);--border-med:rgba(180,60,60,0.2);
+  --text:#2D1515;--text2:#8A5050;--text3:#C4A0A0;
+  --shadow-xs:0 1px 3px rgba(180,60,60,0.06);
+  --shadow-sm:0 2px 8px rgba(180,60,60,0.08);
+  --shadow-lg:0 12px 40px rgba(180,60,60,0.12),0 3px 8px rgba(180,60,60,0.06);
+}
+
+/* ── FOREST ── */
+[data-theme="forest"]{
+  --bg:#F4F7F4;--white:#FAFCFA;
+  --border:rgba(30,80,40,0.09);--border-med:rgba(30,80,40,0.18);
+  --text:#162516;--text2:#4A7050;--text3:#9AB89E;
+  --shadow-xs:0 1px 3px rgba(30,80,40,0.06);
+  --shadow-sm:0 2px 8px rgba(30,80,40,0.08);
+  --shadow-lg:0 12px 40px rgba(30,80,40,0.12),0 3px 8px rgba(30,80,40,0.06);
+}
+
+/* ── OCEAN ── */
+[data-theme="ocean"]{
+  --bg:#F4F7FC;--white:#FAFBFF;
+  --border:rgba(30,60,130,0.09);--border-med:rgba(30,60,130,0.18);
+  --text:#101828;--text2:#3D5A8A;--text3:#92AACC;
+  --shadow-xs:0 1px 3px rgba(30,60,130,0.06);
+  --shadow-sm:0 2px 8px rgba(30,60,130,0.08);
+  --shadow-lg:0 12px 40px rgba(30,60,130,0.12),0 3px 8px rgba(30,60,130,0.06);
+}
+
+/* ── SAND ── */
+[data-theme="sand"]{
+  --bg:#F7F3EC;--white:#FDFAF5;
+  --border:rgba(120,90,40,0.09);--border-med:rgba(120,90,40,0.18);
+  --text:#2A1F0A;--text2:#7A6040;--text3:#BBA880;
+  --shadow-xs:0 1px 3px rgba(120,90,40,0.06);
+  --shadow-sm:0 2px 8px rgba(120,90,40,0.08);
+  --shadow-lg:0 12px 40px rgba(120,90,40,0.12),0 3px 8px rgba(120,90,40,0.06);
 }
 
 /* ── ROSE ── */
@@ -80,16 +154,6 @@
   --shadow-xs:0 1px 3px rgba(120,90,40,0.06);
   --shadow-sm:0 2px 8px rgba(120,90,40,0.08);
   --shadow-lg:0 12px 40px rgba(120,90,40,0.12),0 3px 8px rgba(120,90,40,0.06);
-}
-
-/* ── MIDNIGHT ── */
-[data-theme="midnight"]{
-  --bg:#0D1117;--white:#161B22;
-  --border:rgba(100,140,255,0.1);--border-med:rgba(100,140,255,0.2);
-  --text:#CDD9F0;--text2:#6A85B0;--text3:#334466;
-  --shadow-xs:0 1px 3px rgba(0,0,0,0.4);
-  --shadow-sm:0 2px 8px rgba(0,0,0,0.5);
-  --shadow-lg:0 12px 40px rgba(0,0,0,0.6),0 3px 8px rgba(0,0,0,0.4);
 }
 
 /* theme picker */
@@ -762,11 +826,12 @@ auth.onAuthStateChanged(async user=>{
     render();
     hideSplash();
     subToDateForUser(me.uid,S.date);
+    // After first snapshot fires, do a full render to ensure sidebar is complete
     const allUids=[me.uid,...connections.map(c=>c.uid)];
     allUids.forEach(uid=>{
       prefetchUser(uid).then(()=>{
         subToDateForUser(uid,S.date);
-        if(viewUid===uid){renderTasks();renderProgress();renderCal();}
+        if(viewUid===uid){render();}
       });
     });
   }else{
@@ -823,6 +888,7 @@ function switchView(uid,name,ro){
 }
 function render(){renderSidebar();renderCal();renderCarryover();renderProgress();renderTasks();syncSettings();}
 function renderSidebar(){
+  if(!me)return;
   renderConnList();renderViewCtrl();
   const d=parseKey(S.date),days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   document.getElementById('sbDayLabel').textContent=days[d.getDay()];
@@ -832,6 +898,7 @@ function renderSidebar(){
   document.getElementById('myCodeVal').textContent=me.code;
 }
 function renderConnList(){
+  if(!me)return;
   const list=document.getElementById('connList');list.innerHTML='';
   const mi=document.createElement('div');
   mi.className='conn-item mine-item'+(viewUid===me.uid?' active-view':'');
