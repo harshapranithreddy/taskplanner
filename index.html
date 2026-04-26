@@ -924,20 +924,20 @@ async function doAdd(){
   if(isReadOnly)return;
   const inp=document.getElementById('taskInput'),title=inp.value.trim();if(!title)return;
   const task={id:genId(),title,description:document.getElementById('newDesc').value.trim(),priority:S.newPri,category:document.getElementById('newTag').value.trim(),dueTime:document.getElementById('newTime').value,status:'todo',createdAt:Date.now(),completedAt:null,dateKey:S.date};
-  if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(task);
+  ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(task);
   inp.value='';document.getElementById('newDesc').value='';document.getElementById('newTag').value='';document.getElementById('newTime').value='';
   S.newPri=S.settings.defaultPriority||'none';updatePriUI();document.getElementById('taskExpand').classList.remove('open');inp.focus();
   renderTasks();renderProgress();await saveTask(task);
 }
-async function doToggle(task){task.status=task.status==='done'?'todo':'done';task.completedAt=task.status==='done'?Date.now():null;const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
-async function doDel(task){const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0){undoBuf={task:JSON.parse(JSON.stringify(task)),dateKey:S.date};arr.splice(idx,1);}renderTasks();renderProgress();showToast('Task deleted',true);await delTaskDB(task.id);}
-async function doUpdate(task,changes){Object.assign(task,changes);const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
-async function doDup(task){const copy={...task,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null};if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(copy);renderTasks();renderProgress();await saveTask(copy);}
-async function doMove(task,toKey){const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr.splice(idx,1);const updated={...task,dateKey:toKey,status:'todo',completedAt:null};if(!cachedTasks[toKey])cachedTasks[toKey]=[];cachedTasks[toKey].push(updated);renderTasks();renderProgress();await saveTask(updated);showToast('Moved to '+parseKey(toKey).toLocaleDateString('en-AU',{day:'numeric',month:'short'}));}
+async function doToggle(task){task.status=task.status==='done'?'todo':'done';task.completedAt=task.status==='done'?Date.now():null;const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
+async function doDel(task){const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0){undoBuf={task:JSON.parse(JSON.stringify(task)),dateKey:S.date};arr.splice(idx,1);}renderTasks();renderProgress();showToast('Task deleted',true);await delTaskDB(task.id);}
+async function doUpdate(task,changes){Object.assign(task,changes);const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
+async function doDup(task){const copy={...task,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null};ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(copy);renderTasks();renderProgress();await saveTask(copy);}
+async function doMove(task,toKey){const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr.splice(idx,1);const updated={...task,dateKey:toKey,status:'todo',completedAt:null};ensureUserCache(viewUid);if(!userCache[viewUid][toKey])userCache[viewUid][toKey]=[];userCache[viewUid][toKey].push(updated);renderTasks();renderProgress();await saveTask(updated);showToast('Moved to '+parseKey(toKey).toLocaleDateString('en-AU',{day:'numeric',month:'short'}));}
 async function doCarryOver(){
   if(isReadOnly)return;const prev=new Date(parseKey(S.date));prev.setDate(prev.getDate()-1);
   const pt=getTasks(fmtKey(prev)).filter(t=>t.status!=='done'),saves=[];
-  pt.forEach(t=>{const copy={...t,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null,dateKey:S.date};if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(copy);saves.push(saveTask(copy));});
+  pt.forEach(t=>{const copy={...t,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null,dateKey:S.date};ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(copy);saves.push(saveTask(copy));});
   setDismissed(S.date);renderCarryover();renderTasks();renderProgress();await Promise.all(saves);showToast(pt.length+' task'+(pt.length!==1?'s':'')+' carried over');
 }
 function startEdit(card,task){
@@ -967,7 +967,7 @@ function showToast(msg,undo=false){
   document.querySelector('.toast')?.remove();if(toastTimer)clearTimeout(toastTimer);
   const t=document.createElement('div');t.className='toast';
   t.innerHTML='<span>'+msg+'</span>'+(undo?'<button class="toast-undo">Undo</button>':'')+'<div class="toast-prog"></div>';
-  if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;if(!cachedTasks[dateKey])cachedTasks[dateKey]=[];cachedTasks[dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
+  if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;ensureUserCache(viewUid);if(!userCache[viewUid][dateKey])userCache[viewUid][dateKey]=[];userCache[viewUid][dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
   document.body.appendChild(t);toastTimer=setTimeout(()=>t.remove(),5000);
 }
 // ── THEME ──────────────────────────────────────────────────────────────────
@@ -978,10 +978,6 @@ function applyTheme(theme){
   document.querySelectorAll('.theme-swatch').forEach(s=>{
     s.classList.toggle('active',s.dataset.theme===theme);
   });
-  // Update splash and auth screen bg to match
-  const bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
-  const splash=document.getElementById('splash');
-  if(splash)splash.style.background=bg;
 }
 function saveTheme(theme){try{localStorage.setItem('planner:theme',theme);}catch{}}
 function loadTheme(){
@@ -990,8 +986,6 @@ function loadTheme(){
     applyTheme(t);
   }catch{}
 }
-// Load theme immediately on page load (before Firebase)
-loadTheme();
 
 document.getElementById('themeGrid').addEventListener('click',e=>{
   const swatch=e.target.closest('.theme-swatch');
@@ -1006,7 +1000,7 @@ function syncCalToDate(){const d=parseKey(S.date);S.calY=d.getFullYear();S.calM=
 function isDismissed(k){try{return(JSON.parse(localStorage.getItem('planner:dis')||'{}')||{})[k];}catch{return false;}}
 function setDismissed(k){try{const o=JSON.parse(localStorage.getItem('planner:dis')||'{}');o[k]=1;localStorage.setItem('planner:dis',JSON.stringify(o));}catch{}}
 function exportDay(){const tasks=getTasks(S.date);if(!tasks.length){showToast('No tasks to export');return;}let txt='Tasks - '+fmtFull(parseKey(S.date))+'\n'+'-'.repeat(36)+'\n\n';const active=tasks.filter(t=>t.status!=='done'),done=tasks.filter(t=>t.status==='done');if(active.length){txt+='ACTIVE\n';active.forEach(t=>{txt+='  ['+(t.status==='inprogress'?'~':' ')+'] '+t.title;if(t.priority&&t.priority!=='none')txt+=' ['+t.priority+']';if(t.dueTime)txt+=' @ '+t.dueTime;if(t.category)txt+=' #'+t.category;txt+='\n';if(t.description)txt+='      '+t.description+'\n';});txt+='\n';}if(done.length){txt+='COMPLETED\n';done.forEach(t=>{txt+='  [v] '+t.title+'\n';});}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download='tasks-'+S.date+'.txt';a.click();showToast('Exported!');}
-function clearDay(){if(isReadOnly)return;if(!confirm('Clear all tasks for this day?'))return;const tasks=getTasks(S.date);cachedTasks[S.date]=[];renderTasks();renderProgress();tasks.forEach(t=>delTaskDB(t.id));showToast('Day cleared');}
+function clearDay(){if(isReadOnly)return;if(!confirm('Clear all tasks for this day?'))return;const tasks=getTasks(S.date);if(userCache[viewUid])userCache[viewUid][S.date]=[];renderTasks();renderProgress();tasks.forEach(t=>delTaskDB(t.id));showToast('Day cleared');}
 document.getElementById('inviteToggle').addEventListener('click',()=>{
   const toggle=document.getElementById('inviteToggle'),body=document.getElementById('inviteBody');
   toggle.classList.toggle('open');body.classList.toggle('open');
@@ -1015,8 +1009,7 @@ document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
 document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDateForUser(viewUid,S.date);render();});
 document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDateForUser(viewUid,S.date);render();});
-document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDateForUser(viewUid,S.date);render();});
-document.getElementById('mcPrev').addEventListener('click',()=>{S.calM--;if(S.calM<0){S.calM=11;S.calY--;}renderCal();});
+document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDateForUser(viewUid,S.date);render();});document.getElementById('mcPrev').addEventListener('click',()=>{S.calM--;if(S.calM<0){S.calM=11;S.calY--;}renderCal();});
 document.getElementById('mcNext').addEventListener('click',()=>{S.calM++;if(S.calM>11){S.calM=0;S.calY++;}renderCal();});
 document.getElementById('addBtn').addEventListener('click',doAdd);
 document.getElementById('taskInput').addEventListener('keydown',e=>{if(e.key==='Enter')doAdd();});
@@ -1060,6 +1053,8 @@ document.getElementById('sWkSt').addEventListener('change',e=>{S.settings.weekSt
 document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked===true;saveSettings();S.compOpen=S.settings.showCompleted;renderTasks();});
 document.getElementById('exportBtn').addEventListener('click',exportDay);
 document.getElementById('clearDayBtn').addEventListener('click',clearDay);
+// Apply saved theme last, after all DOM is ready
+loadTheme();
 </script>
 </body>
 </html>
