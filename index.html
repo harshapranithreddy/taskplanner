@@ -49,6 +49,11 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 .auth-btn:disabled{opacity:.5;cursor:not-allowed}
 .auth-err{font-size:12px;color:var(--red);margin-top:10px;text-align:center;min-height:16px}
 .hidden{display:none!important}
+/* splash screen */
+.splash{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .4s ease}
+.splash.fade-out{opacity:0;pointer-events:none}
+.splash-logo{width:64px;height:64px;opacity:.85}
+.splash-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;font-style:italic;color:var(--text);letter-spacing:-0.01em}
 .shell{display:flex;height:100vh;overflow:hidden;position:relative}
 .sidebar{width:var(--sb);flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--white);border-right:1px solid var(--border);transition:width var(--tsb);position:relative;z-index:10}
 .sidebar.collapsed{width:0;border-right-width:0}
@@ -335,6 +340,11 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+
+<div class="splash" id="splash">
+  <img src="favicon.png" class="splash-logo" alt="">
+  <div class="splash-name">Task Planner</div>
+</div>
 
 <div class="auth-screen hidden" id="authScreen">
   <div class="auth-card">
@@ -625,6 +635,11 @@ async function doAuth(){
   }catch(e){errEl.textContent=authErr(e.code);btn.disabled=false;btn.textContent=loginMode?'Sign in':'Create account';}
 }
 function authErr(c){return({'auth/invalid-email':'Invalid email.','auth/user-not-found':'No account found.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/weak-password':'Password must be 6+ characters.','auth/invalid-credential':'Incorrect email or password.','auth/too-many-requests':'Too many attempts.'}[c]||'Something went wrong.');}
+function hideSplash(){
+  const s=document.getElementById('splash');
+  s.classList.add('fade-out');
+  setTimeout(()=>s.style.display='none',420);
+}
 auth.onAuthStateChanged(async user=>{
   if(user){
     const name=user.displayName||'User',code=makeCode(user.uid);
@@ -636,6 +651,7 @@ auth.onAuthStateChanged(async user=>{
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
     await loadConnections();
     render();
+    hideSplash();
     subToDateForUser(me.uid,S.date);
     const allUids=[me.uid,...connections.map(c=>c.uid)];
     allUids.forEach(uid=>{
@@ -648,6 +664,7 @@ auth.onAuthStateChanged(async user=>{
     me=null;connections=[];
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appShell').classList.add('hidden');
+    hideSplash();
     Object.values(userSubs).forEach(subs=>Object.values(subs).forEach(unsub=>unsub()));
     Object.keys(userSubs).forEach(k=>delete userSubs[k]);
     Object.keys(userCache).forEach(k=>delete userCache[k]);
