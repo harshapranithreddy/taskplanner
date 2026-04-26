@@ -3,14 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Task Planner">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#F7F7F5">
 <title>Task Planner</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/harshapranithreddy/taskplanner/main/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -49,11 +43,6 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 .auth-btn:disabled{opacity:.5;cursor:not-allowed}
 .auth-err{font-size:12px;color:var(--red);margin-top:10px;text-align:center;min-height:16px}
 .hidden{display:none!important}
-/* splash screen */
-.splash{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .4s ease}
-.splash.fade-out{opacity:0;pointer-events:none}
-.splash-logo{width:64px;height:64px;opacity:.85}
-.splash-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;font-style:italic;color:var(--text);letter-spacing:-0.01em}
 .shell{display:flex;height:100vh;overflow:hidden;position:relative}
 .sidebar{width:var(--sb);flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--white);border-right:1px solid var(--border);transition:width var(--tsb);position:relative;z-index:10}
 .sidebar.collapsed{width:0;border-right-width:0}
@@ -341,12 +330,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 </head>
 <body>
 
-<div class="splash" id="splash">
-  <img src="faviconsplash.png" class="splash-logo" alt="">
-  <div class="splash-name">Task Planner</div>
-</div>
-
-<div class="auth-screen hidden" id="authScreen">
+<div class="auth-screen" id="authScreen">
   <div class="auth-card">
     <div class="auth-logo">Task Planner</div>
     <div class="auth-sub">Plan your day, share with anyone</div>
@@ -559,12 +543,8 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 firebase.initializeApp({apiKey:"AIzaSyBeasVJq3ncaHeB-3iLDSOq3d89VQVPhts",authDomain:"planner-438ee.firebaseapp.com",projectId:"planner-438ee",storageBucket:"planner-438ee.firebasestorage.app",messagingSenderId:"19688161262",appId:"1:19688161262:web:b3b99ae4e52b58a3c818ff"});
 const auth=firebase.auth(),db=firebase.firestore();
 let me=null,connections=[],viewUid=null,viewName='',isReadOnly=false;
-// Per-user caches and listeners — key is uid
-const userCache={};    // uid -> { dateKey -> tasks[] }
-const userSubs={};     // uid -> { dateKey -> unsubscribe fn }
-let undoBuf=null,toastTimer=null,activeKb=null,movingTask=null;
+let unsubTasks=null,cachedTasks={},undoBuf=null,toastTimer=null,activeKb=null,movingTask=null;
 const S={date:todayKey(),newPri:'none',fltSt:'all',fltPri:null,compOpen:false,calY:0,calM:0,sbOpen:true,settings:{defaultPriority:'none',defaultSort:'added',weekStart:1,showCompleted:false}};
-
 function todayKey(){return fmtKey(new Date())}
 function fmtKey(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
 function p2(n){return String(n).padStart(2,'0')}
@@ -572,42 +552,8 @@ function parseKey(k){const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtFull(d){return d.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-
-// Always read from the viewing user's cache
-function getTasks(dk){return(userCache[viewUid]||{})[dk]||[]}
-function hasTasks(dk){return((userCache[viewUid]||{})[dk]||[]).length>0}
-
-function ensureUserCache(uid){if(!userCache[uid])userCache[uid]={};if(!userSubs[uid])userSubs[uid]={};}
-
-// Subscribe to a specific date for a specific user — reuses existing sub if already active
-function subToDateForUser(uid,dateKey){
-  ensureUserCache(uid);
-  if(userSubs[uid][dateKey])return;
-  userSubs[uid][dateKey]=tasksCol(uid).where('dateKey','==',dateKey).onSnapshot(snap=>{
-    if(!userCache[uid])userCache[uid]={};
-    userCache[uid][dateKey]=snap.docs.map(d=>d.data());
-    // Only update tasks/progress when data arrives — sidebar/calendar already rendered
-    if(viewUid===uid&&me){
-      renderTasks();
-      renderProgress();
-      renderCal(); // update dots on calendar
-    }
-  },e=>console.warn('snap:',e));
-}
-
-// Prefetch all tasks for a user into their cache (background, non-blocking)
-async function prefetchUser(uid){
-  ensureUserCache(uid);
-  try{
-    const snap=await tasksCol(uid).get();
-    snap.docs.forEach(d=>{
-      const t=d.data();
-      if(!userCache[uid][t.dateKey])userCache[uid][t.dateKey]=[];
-      // Avoid duplicates
-      if(!userCache[uid][t.dateKey].find(x=>x.id===t.id))userCache[uid][t.dateKey].push(t);
-    });
-  }catch(e){console.warn('prefetch:',e);}
-}
+function getTasks(dk){return cachedTasks[dk]||[]}
+function hasTasks(dk){return(cachedTasks[dk]||[]).length>0}
 function makeCode(uid){
   let h=0;for(let i=0;i<uid.length;i++){h=((h<<5)-h)+uid.charCodeAt(i);h|=0;}
   const L='ABCDEFGHJKLMNPQRSTUVWXYZ',D='0123456789';
@@ -634,50 +580,21 @@ async function doAuth(){
   }catch(e){errEl.textContent=authErr(e.code);btn.disabled=false;btn.textContent=loginMode?'Sign in':'Create account';}
 }
 function authErr(c){return({'auth/invalid-email':'Invalid email.','auth/user-not-found':'No account found.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/weak-password':'Password must be 6+ characters.','auth/invalid-credential':'Incorrect email or password.','auth/too-many-requests':'Too many attempts.'}[c]||'Something went wrong.');}
-function hideSplash(){
-  const s=document.getElementById('splash');
-  if(!s||s.style.display==='none')return;
-  s.classList.add('fade-out');
-  setTimeout(()=>s.style.display='none',420);
-}
-// Safety fallback — if Firebase takes too long, force hide splash after 4s
-setTimeout(()=>{
-  hideSplash();
-  // If neither screen is visible yet, show login as fallback
-  const appVisible=!document.getElementById('appShell').classList.contains('hidden');
-  const authVisible=!document.getElementById('authScreen').classList.contains('hidden');
-  if(!appVisible&&!authVisible){
-    document.getElementById('authScreen').classList.remove('hidden');
-  }
-},2000);
 auth.onAuthStateChanged(async user=>{
   if(user){
     const name=user.displayName||'User',code=makeCode(user.uid);
     me={uid:user.uid,name,code};
     viewUid=user.uid;viewName=name;isReadOnly=false;
-    loadSettings();
-    S.newPri=S.settings.defaultPriority||'none';
-    S.compOpen=S.settings.showCompleted===true;
-    syncCalToDate();
-    db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
-    await loadConnections();
-    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('authScreen').style.display='none';
     document.getElementById('appShell').classList.remove('hidden');
-    hideSplash();
-    // Simple timeout — let browser paint the shell, then render
-    setTimeout(()=>{
-      render();
-      subToDateForUser(me.uid,S.date);
-      connections.forEach(c=>prefetchUser(c.uid).then(()=>subToDateForUser(c.uid,S.date)));
-    },50);
+    await db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true});
+    loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted||false;syncCalToDate();
+    await loadConnections();await prefetchTasks(viewUid);subToDate(S.date);render();
   }else{
     me=null;connections=[];
-    document.getElementById('authScreen').classList.remove('hidden');
+    document.getElementById('authScreen').style.display='flex';
     document.getElementById('appShell').classList.add('hidden');
-    hideSplash();
-    Object.values(userSubs).forEach(subs=>Object.values(subs).forEach(unsub=>unsub()));
-    Object.keys(userSubs).forEach(k=>delete userSubs[k]);
-    Object.keys(userCache).forEach(k=>delete userCache[k]);
+    if(unsubTasks){unsubTasks();unsubTasks=null;}cachedTasks={};
   }
 });
 async function loadConnections(){try{const snap=await db.collection('users').doc(me.uid).collection('connections').get();connections=snap.docs.map(d=>d.data());}catch(e){console.warn('loadConn:',e);}}
@@ -698,33 +615,24 @@ async function removeConnection(uid){
   try{
     await db.collection('users').doc(me.uid).collection('connections').doc(uid).delete();
     connections=connections.filter(c=>c.uid!==uid);
-    // Clean up that user's listeners
-    if(userSubs[uid]){Object.values(userSubs[uid]).forEach(unsub=>unsub());delete userSubs[uid];}
-    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;}
-    renderConnList();renderViewCtrl();renderProgress();renderTasks();
+    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;cachedTasks={};await prefetchTasks(viewUid);subToDate(S.date);}
+    renderConnList();renderViewCtrl();
   }catch(e){console.warn('removeConn:',e);}
 }
 function tasksCol(uid){return db.collection('users').doc(uid).collection('tasks')}
+async function prefetchTasks(uid){try{const snap=await tasksCol(uid).get();const by={};snap.docs.forEach(d=>{const t=d.data();if(!by[t.dateKey])by[t.dateKey]=[];by[t.dateKey].push(t);});cachedTasks=by;}catch(e){console.warn('prefetch:',e);}}
+function subToDate(dateKey){if(unsubTasks){unsubTasks();unsubTasks=null;}unsubTasks=tasksCol(viewUid).where('dateKey','==',dateKey).onSnapshot(snap=>{cachedTasks[dateKey]=snap.docs.map(d=>d.data());renderTasks();renderProgress();renderCal();},e=>console.warn('snap:',e));}
 async function saveTask(t){if(isReadOnly)return;try{await tasksCol(viewUid).doc(t.id).set(t);}catch(e){console.warn('save:',e);}}
 async function delTaskDB(id){if(isReadOnly)return;try{await tasksCol(viewUid).doc(id).delete();}catch(e){console.warn('del:',e);}}
-
-function switchView(uid,name,ro){
+async function switchView(uid,name,ro){
   if(viewUid===uid)return;
-  viewUid=uid;viewName=name;isReadOnly=ro;
-  // Render INSTANTLY from whatever is already cached — no waiting
-  renderConnList();renderViewCtrl();renderProgress();renderTasks();renderCarryover();renderCal();
-  // Subscribe to current date for this user (fires quickly if Firestore has offline cache)
-  subToDateForUser(uid,S.date);
-  // Prefetch full history in background if not already done
-  if(!userCache[uid]||Object.keys(userCache[uid]).length<=1){
-    prefetchUser(uid).then(()=>{
-      if(viewUid===uid){renderTasks();renderProgress();renderCal();}
-    });
-  }
+  if(unsubTasks){unsubTasks();unsubTasks=null;}
+  viewUid=uid;viewName=name;isReadOnly=ro;cachedTasks={};
+  await prefetchTasks(uid);subToDate(S.date);
+  renderConnList();renderViewCtrl();renderProgress();renderTasks();renderCarryover();
 }
 function render(){renderSidebar();renderCal();renderCarryover();renderProgress();renderTasks();syncSettings();}
 function renderSidebar(){
-  if(!me)return;
   renderConnList();renderViewCtrl();
   const d=parseKey(S.date),days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   document.getElementById('sbDayLabel').textContent=days[d.getDay()];
@@ -734,7 +642,6 @@ function renderSidebar(){
   document.getElementById('myCodeVal').textContent=me.code;
 }
 function renderConnList(){
-  if(!me)return;
   const list=document.getElementById('connList');list.innerHTML='';
   const mi=document.createElement('div');
   mi.className='conn-item mine-item'+(viewUid===me.uid?' active-view':'');
@@ -827,20 +734,20 @@ async function doAdd(){
   if(isReadOnly)return;
   const inp=document.getElementById('taskInput'),title=inp.value.trim();if(!title)return;
   const task={id:genId(),title,description:document.getElementById('newDesc').value.trim(),priority:S.newPri,category:document.getElementById('newTag').value.trim(),dueTime:document.getElementById('newTime').value,status:'todo',createdAt:Date.now(),completedAt:null,dateKey:S.date};
-  ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(task);
+  if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(task);
   inp.value='';document.getElementById('newDesc').value='';document.getElementById('newTag').value='';document.getElementById('newTime').value='';
   S.newPri=S.settings.defaultPriority||'none';updatePriUI();document.getElementById('taskExpand').classList.remove('open');inp.focus();
   renderTasks();renderProgress();await saveTask(task);
 }
-async function doToggle(task){task.status=task.status==='done'?'todo':'done';task.completedAt=task.status==='done'?Date.now():null;const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
-async function doDel(task){const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0){undoBuf={task:JSON.parse(JSON.stringify(task)),dateKey:S.date};arr.splice(idx,1);}renderTasks();renderProgress();showToast('Task deleted',true);await delTaskDB(task.id);}
-async function doUpdate(task,changes){Object.assign(task,changes);const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
-async function doDup(task){const copy={...task,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null};ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(copy);renderTasks();renderProgress();await saveTask(copy);}
-async function doMove(task,toKey){const arr=(userCache[viewUid]||{})[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr.splice(idx,1);const updated={...task,dateKey:toKey,status:'todo',completedAt:null};ensureUserCache(viewUid);if(!userCache[viewUid][toKey])userCache[viewUid][toKey]=[];userCache[viewUid][toKey].push(updated);renderTasks();renderProgress();await saveTask(updated);showToast('Moved to '+parseKey(toKey).toLocaleDateString('en-AU',{day:'numeric',month:'short'}));}
+async function doToggle(task){task.status=task.status==='done'?'todo':'done';task.completedAt=task.status==='done'?Date.now():null;const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
+async function doDel(task){const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0){undoBuf={task:JSON.parse(JSON.stringify(task)),dateKey:S.date};arr.splice(idx,1);}renderTasks();renderProgress();showToast('Task deleted',true);await delTaskDB(task.id);}
+async function doUpdate(task,changes){Object.assign(task,changes);const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr[idx]=task;renderTasks();renderProgress();await saveTask(task);}
+async function doDup(task){const copy={...task,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null};if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(copy);renderTasks();renderProgress();await saveTask(copy);}
+async function doMove(task,toKey){const arr=cachedTasks[S.date]||[],idx=arr.findIndex(t=>t.id===task.id);if(idx>=0)arr.splice(idx,1);const updated={...task,dateKey:toKey,status:'todo',completedAt:null};if(!cachedTasks[toKey])cachedTasks[toKey]=[];cachedTasks[toKey].push(updated);renderTasks();renderProgress();await saveTask(updated);showToast('Moved to '+parseKey(toKey).toLocaleDateString('en-AU',{day:'numeric',month:'short'}));}
 async function doCarryOver(){
   if(isReadOnly)return;const prev=new Date(parseKey(S.date));prev.setDate(prev.getDate()-1);
   const pt=getTasks(fmtKey(prev)).filter(t=>t.status!=='done'),saves=[];
-  pt.forEach(t=>{const copy={...t,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null,dateKey:S.date};ensureUserCache(viewUid);if(!userCache[viewUid][S.date])userCache[viewUid][S.date]=[];userCache[viewUid][S.date].push(copy);saves.push(saveTask(copy));});
+  pt.forEach(t=>{const copy={...t,id:genId(),createdAt:Date.now(),status:'todo',completedAt:null,dateKey:S.date};if(!cachedTasks[S.date])cachedTasks[S.date]=[];cachedTasks[S.date].push(copy);saves.push(saveTask(copy));});
   setDismissed(S.date);renderCarryover();renderTasks();renderProgress();await Promise.all(saves);showToast(pt.length+' task'+(pt.length!==1?'s':'')+' carried over');
 }
 function startEdit(card,task){
@@ -870,10 +777,65 @@ function showToast(msg,undo=false){
   document.querySelector('.toast')?.remove();if(toastTimer)clearTimeout(toastTimer);
   const t=document.createElement('div');t.className='toast';
   t.innerHTML='<span>'+msg+'</span>'+(undo?'<button class="toast-undo">Undo</button>':'')+'<div class="toast-prog"></div>';
-  if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;ensureUserCache(viewUid);if(!userCache[viewUid][dateKey])userCache[viewUid][dateKey]=[];userCache[viewUid][dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
+  if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;if(!cachedTasks[dateKey])cachedTasks[dateKey]=[];cachedTasks[dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
   document.body.appendChild(t);toastTimer=setTimeout(()=>t.remove(),5000);
 }
-
+function loadSettings(){try{Object.assign(S.settings,JSON.parse(localStorage.getItem('planner:cfg')||'{}'));}catch{}}
+function saveSettings(){try{localStorage.setItem('planner:cfg',JSON.stringify(S.settings));}catch{}}
+function syncSettings(){document.getElementById('sDfPri').value=S.settings.defaultPriority;document.getElementById('sWkSt').value=S.settings.weekStart;document.getElementById('sShComp').checked=S.settings.showCompleted;document.getElementById('sortSel').value=S.settings.defaultSort;}
+function updatePriUI(){document.querySelectorAll('#newPriPills .p-pill').forEach(b=>{b.className='p-pill'+(b.dataset.p===S.newPri?' sel-'+S.newPri:'');});}
+function syncCalToDate(){const d=parseKey(S.date);S.calY=d.getFullYear();S.calM=d.getMonth();}
+function isDismissed(k){try{return(JSON.parse(localStorage.getItem('planner:dis')||'{}')||{})[k];}catch{return false;}}
+function setDismissed(k){try{const o=JSON.parse(localStorage.getItem('planner:dis')||'{}');o[k]=1;localStorage.setItem('planner:dis',JSON.stringify(o));}catch{}}
+function exportDay(){const tasks=getTasks(S.date);if(!tasks.length){showToast('No tasks to export');return;}let txt='Tasks - '+fmtFull(parseKey(S.date))+'\n'+'-'.repeat(36)+'\n\n';const active=tasks.filter(t=>t.status!=='done'),done=tasks.filter(t=>t.status==='done');if(active.length){txt+='ACTIVE\n';active.forEach(t=>{txt+='  ['+(t.status==='inprogress'?'~':' ')+'] '+t.title;if(t.priority&&t.priority!=='none')txt+=' ['+t.priority+']';if(t.dueTime)txt+=' @ '+t.dueTime;if(t.category)txt+=' #'+t.category;txt+='\n';if(t.description)txt+='      '+t.description+'\n';});txt+='\n';}if(done.length){txt+='COMPLETED\n';done.forEach(t=>{txt+='  [v] '+t.title+'\n';});}const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));a.download='tasks-'+S.date+'.txt';a.click();showToast('Exported!');}
+function clearDay(){if(isReadOnly)return;if(!confirm('Clear all tasks for this day?'))return;const tasks=getTasks(S.date);cachedTasks[S.date]=[];renderTasks();renderProgress();tasks.forEach(t=>delTaskDB(t.id));showToast('Day cleared');}
+document.getElementById('inviteToggle').addEventListener('click',()=>{
+  const toggle=document.getElementById('inviteToggle'),body=document.getElementById('inviteBody');
+  toggle.classList.toggle('open');body.classList.toggle('open');
+});
+document.getElementById('collapseBtn').addEventListener('click',toggleSb);
+document.getElementById('openSbBtn').addEventListener('click',toggleSb);
+document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
+document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
+document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDate(S.date);render();});
+document.getElementById('mcPrev').addEventListener('click',()=>{S.calM--;if(S.calM<0){S.calM=11;S.calY--;}renderCal();});
+document.getElementById('mcNext').addEventListener('click',()=>{S.calM++;if(S.calM>11){S.calM=0;S.calY++;}renderCal();});
+document.getElementById('addBtn').addEventListener('click',doAdd);
+document.getElementById('taskInput').addEventListener('keydown',e=>{if(e.key==='Enter')doAdd();});
+document.getElementById('taskInput').addEventListener('focus',()=>document.getElementById('taskExpand').classList.add('open'));
+document.addEventListener('click',e=>{const w=document.getElementById('inpWrap'),ex=document.getElementById('taskExpand');if(w&&ex&&!w.contains(e.target)&&!ex.contains(e.target))ex.classList.remove('open');});
+document.getElementById('newPriPills').addEventListener('click',e=>{const b=e.target.closest('.p-pill');if(!b)return;S.newPri=b.dataset.p;updatePriUI();});
+document.getElementById('statusFlt').addEventListener('click',e=>{const b=e.target.closest('[data-st]');if(!b)return;S.fltSt=b.dataset.st;document.querySelectorAll('#statusFlt .f-btn').forEach(x=>x.classList.toggle('active',x.dataset.st===S.fltSt));renderTasks();});
+document.getElementById('priFlt').addEventListener('click',e=>{const b=e.target.closest('[data-pr]');if(!b)return;const p=b.dataset.pr;if(S.fltPri===p){S.fltPri=null;b.className='f-btn';}else{S.fltPri=p;document.querySelectorAll('#priFlt .f-btn').forEach(x=>{x.className=x.dataset.pr===p?'f-btn act-'+p[0]:'f-btn';});}renderTasks();});
+document.getElementById('clrFlt').addEventListener('click',()=>{S.fltSt='all';S.fltPri=null;document.querySelectorAll('#statusFlt .f-btn').forEach(b=>b.classList.toggle('active',b.dataset.st==='all'));document.querySelectorAll('#priFlt .f-btn').forEach(b=>b.className='f-btn');renderTasks();});
+document.getElementById('sortSel').addEventListener('change',e=>{S.settings.defaultSort=e.target.value;saveSettings();renderTasks();});
+document.getElementById('compTog').addEventListener('click',()=>{S.compOpen=!S.compOpen;renderTasks();});
+document.getElementById('coBtn').addEventListener('click',doCarryOver);
+document.getElementById('coDismiss').addEventListener('click',()=>{setDismissed(S.date);document.getElementById('coBanner').style.display='none';});
+document.getElementById('addCodeBtn').addEventListener('click',async()=>{
+  const input=document.getElementById('addCodeInput'),errEl=document.getElementById('addCodeErr'),btn=document.getElementById('addCodeBtn');
+  errEl.textContent='';btn.disabled=true;btn.textContent='Adding...';
+  const err=await addConnection(input.value);
+  btn.disabled=false;btn.textContent='Add';
+  if(err){errEl.textContent=err;}else{input.value='';renderConnList();showToast('Added successfully!');}
+});
+document.getElementById('addCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('addCodeBtn').click();});
+document.getElementById('copyCodeBtn').addEventListener('click',()=>{
+  if(!me)return;
+  navigator.clipboard.writeText(me.code).then(()=>showToast('Invite code copied!')).catch(()=>{const tmp=document.createElement('input');tmp.value=me.code;document.body.appendChild(tmp);tmp.select();document.execCommand('copy');document.body.removeChild(tmp);showToast('Invite code copied!');});
+});
+document.getElementById('settingsBtn').addEventListener('click',()=>{document.getElementById('setOl').classList.remove('hidden');document.getElementById('setPanel').classList.remove('hidden');});
+document.getElementById('setOl').addEventListener('click',()=>{document.getElementById('setOl').classList.add('hidden');document.getElementById('setPanel').classList.add('hidden');});
+document.getElementById('setClsBtn').addEventListener('click',()=>{document.getElementById('setOl').classList.add('hidden');document.getElementById('setPanel').classList.add('hidden');});
+document.getElementById('signOutBtn').addEventListener('click',()=>auth.signOut());
+document.getElementById('moveOkBtn').addEventListener('click',()=>{const d=document.getElementById('moveDate').value;if(!d||d===S.date){document.getElementById('moveModal').classList.add('hidden');return;}doMove(movingTask,d);document.getElementById('moveModal').classList.add('hidden');movingTask=null;});
+document.getElementById('moveCancelBtn').addEventListener('click',()=>{document.getElementById('moveModal').classList.add('hidden');movingTask=null;});
+document.getElementById('moveModal').addEventListener('click',e=>{if(e.target===document.getElementById('moveModal')){document.getElementById('moveModal').classList.add('hidden');movingTask=null;}});
+document.getElementById('sDfPri').addEventListener('change',e=>{S.settings.defaultPriority=e.target.value;saveSettings();S.newPri=e.target.value;updatePriUI();});
+document.getElementById('sWkSt').addEventListener('change',e=>{S.settings.weekStart=parseInt(e.target.value);saveSettings();renderCal();});
+document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked;saveSettings();S.compOpen=e.target.checked;renderTasks();});
+document.getElementById('exportBtn').addEventListener('click',exportDay);
+document.getElementById('clearDayBtn').addEventListener('click',clearDay);
 </script>
 </body>
 </html>
