@@ -740,9 +740,20 @@ async function doAuth(){
 function authErr(c){return({'auth/invalid-email':'Invalid email.','auth/user-not-found':'No account found.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/weak-password':'Password must be 6+ characters.','auth/invalid-credential':'Incorrect email or password.','auth/too-many-requests':'Too many attempts.'}[c]||'Something went wrong.');}
 function hideSplash(){
   const s=document.getElementById('splash');
+  if(!s||s.style.display==='none')return;
   s.classList.add('fade-out');
   setTimeout(()=>s.style.display='none',420);
 }
+// Safety fallback — if Firebase takes too long, force hide splash after 4s
+setTimeout(()=>{
+  hideSplash();
+  // If neither screen is visible yet, show login as fallback
+  const appVisible=!document.getElementById('appShell').classList.contains('hidden');
+  const authVisible=!document.getElementById('authScreen').classList.contains('hidden');
+  if(!appVisible&&!authVisible){
+    document.getElementById('authScreen').classList.remove('hidden');
+  }
+},4000);
 auth.onAuthStateChanged(async user=>{
   if(user){
     const name=user.displayName||'User',code=makeCode(user.uid);
