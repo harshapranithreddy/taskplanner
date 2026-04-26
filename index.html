@@ -753,7 +753,12 @@ function subToDateForUser(uid,dateKey){
   userSubs[uid][dateKey]=tasksCol(uid).where('dateKey','==',dateKey).onSnapshot(snap=>{
     if(!userCache[uid])userCache[uid]={};
     userCache[uid][dateKey]=snap.docs.map(d=>d.data());
-    if(viewUid===uid&&me){render();}
+    // Only update tasks/progress when data arrives — sidebar/calendar already rendered
+    if(viewUid===uid&&me){
+      renderTasks();
+      renderProgress();
+      renderCal(); // update dots on calendar
+    }
   },e=>console.warn('snap:',e));
 }
 
@@ -823,16 +828,20 @@ auth.onAuthStateChanged(async user=>{
     S.newPri=S.settings.defaultPriority||'none';
     S.compOpen=S.settings.showCompleted===true;
     syncCalToDate();
-    // Register in directory
+    // Register in directory (non-blocking)
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
-    // Load connections
+    // Load connections (fast — small collection)
     await loadConnections();
-    // Subscribe to today — when snapshot fires it triggers a full render
-    subToDateForUser(me.uid,S.date);
-    // Also do an immediate render so UI isn't blank
+    // Wait one frame for browser to paint the shell before we render into it
+    await new Promise(r=>requestAnimationFrame(r));
+    // Wait one frame for browser to paint the shell before we render into it
+    await new Promise(r=>requestAnimationFrame(r));
+    // Render IMMEDIATELY — sidebar, calendar, date all draw right now
     render();
     hideSplash();
-    // Prefetch all connections in background
+    // Now subscribe — when data arrives, tasks fill in
+    subToDateForUser(me.uid,S.date);
+    // Prefetch connections in background
     connections.forEach(c=>{
       prefetchUser(c.uid).then(()=>subToDateForUser(c.uid,S.date));
     });
