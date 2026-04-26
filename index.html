@@ -3,8 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Task Planner">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#F7F7F5">
 <title>Task Planner</title>
-<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/harshapranithreddy/taskplanner/main/favicon.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -43,6 +49,11 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 .auth-btn:disabled{opacity:.5;cursor:not-allowed}
 .auth-err{font-size:12px;color:var(--red);margin-top:10px;text-align:center;min-height:16px}
 .hidden{display:none!important}
+/* splash */
+.splash{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;transition:opacity .4s ease}
+.splash.fade-out{opacity:0;pointer-events:none}
+.splash-logo{width:64px;height:64px;opacity:.85}
+.splash-name{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;font-style:italic;color:var(--text);letter-spacing:-0.01em}
 .shell{display:flex;height:100vh;overflow:hidden;position:relative}
 .sidebar{width:var(--sb);flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--white);border-right:1px solid var(--border);transition:width var(--tsb);position:relative;z-index:10}
 .sidebar.collapsed{width:0;border-right-width:0}
@@ -330,7 +341,12 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 </head>
 <body>
 
-<div class="auth-screen" id="authScreen">
+<div class="splash" id="splash">
+  <img src="faviconsplash.png" class="splash-logo" alt="">
+  <div class="splash-name">Task Planner</div>
+</div>
+
+<div class="auth-screen hidden" id="authScreen">
   <div class="auth-card">
     <div class="auth-logo">Task Planner</div>
     <div class="auth-sub">Plan your day, share with anyone</div>
@@ -580,20 +596,25 @@ async function doAuth(){
   }catch(e){errEl.textContent=authErr(e.code);btn.disabled=false;btn.textContent=loginMode?'Sign in':'Create account';}
 }
 function authErr(c){return({'auth/invalid-email':'Invalid email.','auth/user-not-found':'No account found.','auth/wrong-password':'Wrong password.','auth/email-already-in-use':'Email already in use.','auth/weak-password':'Password must be 6+ characters.','auth/invalid-credential':'Incorrect email or password.','auth/too-many-requests':'Too many attempts.'}[c]||'Something went wrong.');}
+function hideSplash(){const s=document.getElementById('splash');if(!s||s.style.display==='none')return;s.classList.add('fade-out');setTimeout(()=>s.style.display='none',420);}
+// Fallback: hide splash after 3s no matter what
+setTimeout(()=>{hideSplash();const appVisible=!document.getElementById('appShell').classList.contains('hidden');const authVisible=!document.getElementById('authScreen').classList.contains('hidden');if(!appVisible&&!authVisible)document.getElementById('authScreen').classList.remove('hidden');},3000);
 auth.onAuthStateChanged(async user=>{
   if(user){
     const name=user.displayName||'User',code=makeCode(user.uid);
     me={uid:user.uid,name,code};
     viewUid=user.uid;viewName=name;isReadOnly=false;
-    document.getElementById('authScreen').style.display='none';
+    document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
     await db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true});
     loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted||false;syncCalToDate();
     await loadConnections();await prefetchTasks(viewUid);subToDate(S.date);render();
+    hideSplash();
   }else{
     me=null;connections=[];
-    document.getElementById('authScreen').style.display='flex';
+    document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appShell').classList.add('hidden');
+    hideSplash();
     if(unsubTasks){unsubTasks();unsubTasks=null;}cachedTasks={};
   }
 });
@@ -780,7 +801,7 @@ function showToast(msg,undo=false){
   if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;if(!cachedTasks[dateKey])cachedTasks[dateKey]=[];cachedTasks[dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
   document.body.appendChild(t);toastTimer=setTimeout(()=>t.remove(),5000);
 }
-function loadSettings(){try{Object.assign(S.settings,JSON.parse(localStorage.getItem('planner:cfg')||'{}'));}catch{}}
+function loadSettings(){try{const saved=JSON.parse(localStorage.getItem('planner:cfg')||'{}');Object.assign(S.settings,saved);S.settings.showCompleted=saved.showCompleted===true;}catch{}}
 function saveSettings(){try{localStorage.setItem('planner:cfg',JSON.stringify(S.settings));}catch{}}
 function syncSettings(){document.getElementById('sDfPri').value=S.settings.defaultPriority;document.getElementById('sWkSt').value=S.settings.weekStart;document.getElementById('sShComp').checked=S.settings.showCompleted;document.getElementById('sortSel').value=S.settings.defaultSort;}
 function updatePriUI(){document.querySelectorAll('#newPriPills .p-pill').forEach(b=>{b.className='p-pill'+(b.dataset.p===S.newPri?' sel-'+S.newPri:'');});}
@@ -833,7 +854,7 @@ document.getElementById('moveCancelBtn').addEventListener('click',()=>{document.
 document.getElementById('moveModal').addEventListener('click',e=>{if(e.target===document.getElementById('moveModal')){document.getElementById('moveModal').classList.add('hidden');movingTask=null;}});
 document.getElementById('sDfPri').addEventListener('change',e=>{S.settings.defaultPriority=e.target.value;saveSettings();S.newPri=e.target.value;updatePriUI();});
 document.getElementById('sWkSt').addEventListener('change',e=>{S.settings.weekStart=parseInt(e.target.value);saveSettings();renderCal();});
-document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked;saveSettings();S.compOpen=e.target.checked;renderTasks();});
+document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked===true;saveSettings();S.compOpen=S.settings.showCompleted;renderTasks();});
 document.getElementById('exportBtn').addEventListener('click',exportDay);
 document.getElementById('clearDayBtn').addEventListener('click',clearDay);
 </script>
