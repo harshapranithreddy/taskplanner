@@ -548,9 +548,18 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 <script>
 firebase.initializeApp({apiKey:"AIzaSyBeasVJq3ncaHeB-3iLDSOq3d89VQVPhts",authDomain:"planner-438ee.firebaseapp.com",projectId:"planner-438ee",storageBucket:"planner-438ee.firebasestorage.app",messagingSenderId:"19688161262",appId:"1:19688161262:web:b3b99ae4e52b58a3c818ff"});
 const auth=firebase.auth(),db=firebase.firestore();
+// Enable offline persistence — reads from local cache instantly, syncs in background
+db.enablePersistence({synchronizeTabs:true}).catch(e=>{
+  if(e.code==='failed-precondition'){console.warn('Persistence unavailable: multiple tabs open');}
+  else if(e.code==='unimplemented'){console.warn('Persistence not supported in this browser');}
+});
 let me=null,connections=[],viewUid=null,viewName='',isReadOnly=false;
-let unsubTasks=null,cachedTasks={},undoBuf=null,toastTimer=null,activeKb=null,movingTask=null;
+// Per-user caches and listeners — key is uid
+const userCache={};    // uid -> { dateKey -> tasks[] }
+const userSubs={};     // uid -> { dateKey -> unsubscribe fn }
+let undoBuf=null,toastTimer=null,activeKb=null,movingTask=null;
 const S={date:todayKey(),newPri:'none',fltSt:'all',fltPri:null,compOpen:false,calY:0,calM:0,sbOpen:true,settings:{defaultPriority:'none',defaultSort:'added',weekStart:1,showCompleted:false}};
+
 function todayKey(){return fmtKey(new Date())}
 function fmtKey(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
 function p2(n){return String(n).padStart(2,'0')}
@@ -558,8 +567,38 @@ function parseKey(k){const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function fmtFull(d){return d.toLocaleDateString('en-AU',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
-function getTasks(dk){return cachedTasks[dk]||[]}
-function hasTasks(dk){return(cachedTasks[dk]||[]).length>0}
+
+// Always read from the viewing user's cache
+function getTasks(dk){return(userCache[viewUid]||{})[dk]||[]}
+function hasTasks(dk){return((userCache[viewUid]||{})[dk]||[]).length>0}
+
+function ensureUserCache(uid){if(!userCache[uid])userCache[uid]={};if(!userSubs[uid])userSubs[uid]={};}
+
+// Subscribe to a specific date for a specific user — reuses existing sub if already active
+function subToDateForUser(uid,dateKey){
+  ensureUserCache(uid);
+  if(userSubs[uid][dateKey])return; // already subscribed, nothing to do
+  userSubs[uid][dateKey]=tasksCol(uid).where('dateKey','==',dateKey).onSnapshot(snap=>{
+    if(!userCache[uid])userCache[uid]={};
+    userCache[uid][dateKey]=snap.docs.map(d=>d.data());
+    // Only re-render if this is the active view
+    if(viewUid===uid){renderTasks();renderProgress();renderCal();}
+  },e=>console.warn('snap:',e));
+}
+
+// Prefetch all tasks for a user into their cache (background, non-blocking)
+async function prefetchUser(uid){
+  ensureUserCache(uid);
+  try{
+    const snap=await tasksCol(uid).get();
+    snap.docs.forEach(d=>{
+      const t=d.data();
+      if(!userCache[uid][t.dateKey])userCache[uid][t.dateKey]=[];
+      // Avoid duplicates
+      if(!userCache[uid][t.dateKey].find(x=>x.id===t.id))userCache[uid][t.dateKey].push(t);
+    });
+  }catch(e){console.warn('prefetch:',e);}
+}
 function makeCode(uid){
   let h=0;for(let i=0;i<uid.length;i++){h=((h<<5)-h)+uid.charCodeAt(i);h|=0;}
   const L='ABCDEFGHJKLMNPQRSTUVWXYZ',D='0123456789';
@@ -593,14 +632,31 @@ auth.onAuthStateChanged(async user=>{
     viewUid=user.uid;viewName=name;isReadOnly=false;
     document.getElementById('authScreen').style.display='none';
     document.getElementById('appShell').classList.remove('hidden');
-    await db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true});
     loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted||false;syncCalToDate();
-    await loadConnections();await prefetchTasks(viewUid);subToDate(S.date);render();
+    // Register in directory (non-blocking)
+    db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
+    // Load connections first (needed for sidebar)
+    await loadConnections();
+    // Render immediately with empty cache — feels instant
+    render();
+    // Subscribe to today for self — snapshot fires quickly with cached Firestore data
+    subToDateForUser(me.uid,S.date);
+    // Prefetch ALL users in background simultaneously (non-blocking)
+    const allUids=[me.uid,...connections.map(c=>c.uid)];
+    allUids.forEach(uid=>{
+      prefetchUser(uid).then(()=>{
+        subToDateForUser(uid,S.date);
+        // If currently viewing this user, update the UI
+        if(viewUid===uid){renderTasks();renderProgress();renderCal();}
+      });
+    });
   }else{
     me=null;connections=[];
     document.getElementById('authScreen').style.display='flex';
     document.getElementById('appShell').classList.add('hidden');
-    if(unsubTasks){unsubTasks();unsubTasks=null;}cachedTasks={};
+    Object.values(userSubs).forEach(subs=>Object.values(subs).forEach(unsub=>unsub()));
+    Object.keys(userSubs).forEach(k=>delete userSubs[k]);
+    Object.keys(userCache).forEach(k=>delete userCache[k]);
   }
 });
 async function loadConnections(){try{const snap=await db.collection('users').doc(me.uid).collection('connections').get();connections=snap.docs.map(d=>d.data());}catch(e){console.warn('loadConn:',e);}}
@@ -621,21 +677,29 @@ async function removeConnection(uid){
   try{
     await db.collection('users').doc(me.uid).collection('connections').doc(uid).delete();
     connections=connections.filter(c=>c.uid!==uid);
-    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;cachedTasks={};await prefetchTasks(viewUid);subToDate(S.date);}
-    renderConnList();renderViewCtrl();
+    // Clean up that user's listeners
+    if(userSubs[uid]){Object.values(userSubs[uid]).forEach(unsub=>unsub());delete userSubs[uid];}
+    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;}
+    renderConnList();renderViewCtrl();renderProgress();renderTasks();
   }catch(e){console.warn('removeConn:',e);}
 }
 function tasksCol(uid){return db.collection('users').doc(uid).collection('tasks')}
-async function prefetchTasks(uid){try{const snap=await tasksCol(uid).get();const by={};snap.docs.forEach(d=>{const t=d.data();if(!by[t.dateKey])by[t.dateKey]=[];by[t.dateKey].push(t);});cachedTasks=by;}catch(e){console.warn('prefetch:',e);}}
-function subToDate(dateKey){if(unsubTasks){unsubTasks();unsubTasks=null;}unsubTasks=tasksCol(viewUid).where('dateKey','==',dateKey).onSnapshot(snap=>{cachedTasks[dateKey]=snap.docs.map(d=>d.data());renderTasks();renderProgress();renderCal();},e=>console.warn('snap:',e));}
 async function saveTask(t){if(isReadOnly)return;try{await tasksCol(viewUid).doc(t.id).set(t);}catch(e){console.warn('save:',e);}}
 async function delTaskDB(id){if(isReadOnly)return;try{await tasksCol(viewUid).doc(id).delete();}catch(e){console.warn('del:',e);}}
-async function switchView(uid,name,ro){
+
+function switchView(uid,name,ro){
   if(viewUid===uid)return;
-  if(unsubTasks){unsubTasks();unsubTasks=null;}
-  viewUid=uid;viewName=name;isReadOnly=ro;cachedTasks={};
-  await prefetchTasks(uid);subToDate(S.date);
-  renderConnList();renderViewCtrl();renderProgress();renderTasks();renderCarryover();
+  viewUid=uid;viewName=name;isReadOnly=ro;
+  // Render INSTANTLY from whatever is already cached — no waiting
+  renderConnList();renderViewCtrl();renderProgress();renderTasks();renderCarryover();renderCal();
+  // Subscribe to current date for this user (fires quickly if Firestore has offline cache)
+  subToDateForUser(uid,S.date);
+  // Prefetch full history in background if not already done
+  if(!userCache[uid]||Object.keys(userCache[uid]).length<=1){
+    prefetchUser(uid).then(()=>{
+      if(viewUid===uid){renderTasks();renderProgress();renderCal();}
+    });
+  }
 }
 function render(){renderSidebar();renderCal();renderCarryover();renderProgress();renderTasks();syncSettings();}
 function renderSidebar(){
@@ -801,9 +865,9 @@ document.getElementById('inviteToggle').addEventListener('click',()=>{
 });
 document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
-document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
-document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
-document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDate(S.date);render();});
+document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDateForUser(viewUid,S.date);render();});
+document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDateForUser(viewUid,S.date);render();});
+document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDateForUser(viewUid,S.date);render();});
 document.getElementById('mcPrev').addEventListener('click',()=>{S.calM--;if(S.calM<0){S.calM=11;S.calY--;}renderCal();});
 document.getElementById('mcNext').addEventListener('click',()=>{S.calM++;if(S.calM>11){S.calM=0;S.calY++;}renderCal();});
 document.getElementById('addBtn').addEventListener('click',doAdd);
