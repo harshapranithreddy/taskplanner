@@ -655,29 +655,21 @@ auth.onAuthStateChanged(async user=>{
     const name=user.displayName||'User',code=makeCode(user.uid);
     me={uid:user.uid,name,code};
     viewUid=user.uid;viewName=name;isReadOnly=false;
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('appShell').classList.remove('hidden');
     loadSettings();
     S.newPri=S.settings.defaultPriority||'none';
     S.compOpen=S.settings.showCompleted===true;
     syncCalToDate();
-    // Register in directory (non-blocking)
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
-    // Load connections (fast — small collection)
     await loadConnections();
-    // Wait one frame for browser to paint the shell before we render into it
-    await new Promise(r=>requestAnimationFrame(r));
-    // Wait one frame for browser to paint the shell before we render into it
-    await new Promise(r=>requestAnimationFrame(r));
-    // Render IMMEDIATELY — sidebar, calendar, date all draw right now
-    render();
+    document.getElementById('authScreen').classList.add('hidden');
+    document.getElementById('appShell').classList.remove('hidden');
     hideSplash();
-    // Now subscribe — when data arrives, tasks fill in
-    subToDateForUser(me.uid,S.date);
-    // Prefetch connections in background
-    connections.forEach(c=>{
-      prefetchUser(c.uid).then(()=>subToDateForUser(c.uid,S.date));
-    });
+    // Simple timeout — let browser paint the shell, then render
+    setTimeout(()=>{
+      render();
+      subToDateForUser(me.uid,S.date);
+      connections.forEach(c=>prefetchUser(c.uid).then(()=>subToDateForUser(c.uid,S.date)));
+    },50);
   }else{
     me=null;connections=[];
     document.getElementById('authScreen').classList.remove('hidden');
