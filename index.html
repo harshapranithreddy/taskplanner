@@ -749,12 +749,11 @@ function ensureUserCache(uid){if(!userCache[uid])userCache[uid]={};if(!userSubs[
 // Subscribe to a specific date for a specific user — reuses existing sub if already active
 function subToDateForUser(uid,dateKey){
   ensureUserCache(uid);
-  if(userSubs[uid][dateKey])return; // already subscribed, nothing to do
+  if(userSubs[uid][dateKey])return;
   userSubs[uid][dateKey]=tasksCol(uid).where('dateKey','==',dateKey).onSnapshot(snap=>{
     if(!userCache[uid])userCache[uid]={};
     userCache[uid][dateKey]=snap.docs.map(d=>d.data());
-    // Only re-render if this is the active view
-    if(viewUid===uid){renderTasks();renderProgress();renderCal();}
+    if(viewUid===uid&&me){render();}
   },e=>console.warn('snap:',e));
 }
 
@@ -812,7 +811,7 @@ setTimeout(()=>{
   if(!appVisible&&!authVisible){
     document.getElementById('authScreen').classList.remove('hidden');
   }
-},4000);
+},2000);
 auth.onAuthStateChanged(async user=>{
   if(user){
     const name=user.displayName||'User',code=makeCode(user.uid);
@@ -820,19 +819,22 @@ auth.onAuthStateChanged(async user=>{
     viewUid=user.uid;viewName=name;isReadOnly=false;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
-    loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted===true;syncCalToDate();
+    loadSettings();
+    S.newPri=S.settings.defaultPriority||'none';
+    S.compOpen=S.settings.showCompleted===true;
+    syncCalToDate();
+    // Register in directory
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
+    // Load connections
     await loadConnections();
+    // Subscribe to today — when snapshot fires it triggers a full render
+    subToDateForUser(me.uid,S.date);
+    // Also do an immediate render so UI isn't blank
     render();
     hideSplash();
-    subToDateForUser(me.uid,S.date);
-    // After first snapshot fires, do a full render to ensure sidebar is complete
-    const allUids=[me.uid,...connections.map(c=>c.uid)];
-    allUids.forEach(uid=>{
-      prefetchUser(uid).then(()=>{
-        subToDateForUser(uid,S.date);
-        if(viewUid===uid){render();}
-      });
+    // Prefetch all connections in background
+    connections.forEach(c=>{
+      prefetchUser(c.uid).then(()=>subToDateForUser(c.uid,S.date));
     });
   }else{
     me=null;connections=[];
