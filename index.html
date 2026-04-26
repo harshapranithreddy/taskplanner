@@ -632,7 +632,7 @@ auth.onAuthStateChanged(async user=>{
     viewUid=user.uid;viewName=name;isReadOnly=false;
     document.getElementById('authScreen').style.display='none';
     document.getElementById('appShell').classList.remove('hidden');
-    loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted||false;syncCalToDate();
+    loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted===true;syncCalToDate();
     // Register in directory (non-blocking)
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(e=>console.warn('dir:',e));
     // Load connections first (needed for sidebar)
@@ -850,7 +850,7 @@ function showToast(msg,undo=false){
   if(undo)t.querySelector('.toast-undo').addEventListener('click',async()=>{if(undoBuf){const{task,dateKey}=undoBuf;task.dateKey=dateKey;if(!cachedTasks[dateKey])cachedTasks[dateKey]=[];cachedTasks[dateKey].push(task);undoBuf=null;renderTasks();renderProgress();await saveTask(task);}t.remove();});
   document.body.appendChild(t);toastTimer=setTimeout(()=>t.remove(),5000);
 }
-function loadSettings(){try{Object.assign(S.settings,JSON.parse(localStorage.getItem('planner:cfg')||'{}'));}catch{}}
+function loadSettings(){try{const saved=JSON.parse(localStorage.getItem('planner:cfg')||'{}');Object.assign(S.settings,saved);S.settings.showCompleted=saved.showCompleted===true;}catch{}}
 function saveSettings(){try{localStorage.setItem('planner:cfg',JSON.stringify(S.settings));}catch{}}
 function syncSettings(){document.getElementById('sDfPri').value=S.settings.defaultPriority;document.getElementById('sWkSt').value=S.settings.weekStart;document.getElementById('sShComp').checked=S.settings.showCompleted;document.getElementById('sortSel').value=S.settings.defaultSort;}
 function updatePriUI(){document.querySelectorAll('#newPriPills .p-pill').forEach(b=>{b.className='p-pill'+(b.dataset.p===S.newPri?' sel-'+S.newPri:'');});}
@@ -903,7 +903,7 @@ document.getElementById('moveCancelBtn').addEventListener('click',()=>{document.
 document.getElementById('moveModal').addEventListener('click',e=>{if(e.target===document.getElementById('moveModal')){document.getElementById('moveModal').classList.add('hidden');movingTask=null;}});
 document.getElementById('sDfPri').addEventListener('change',e=>{S.settings.defaultPriority=e.target.value;saveSettings();S.newPri=e.target.value;updatePriUI();});
 document.getElementById('sWkSt').addEventListener('change',e=>{S.settings.weekStart=parseInt(e.target.value);saveSettings();renderCal();});
-document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked;saveSettings();S.compOpen=e.target.checked;renderTasks();});
+document.getElementById('sShComp').addEventListener('change',e=>{S.settings.showCompleted=e.target.checked===true;saveSettings();S.compOpen=S.settings.showCompleted;renderTasks();});
 document.getElementById('exportBtn').addEventListener('click',exportDay);
 document.getElementById('clearDayBtn').addEventListener('click',clearDay);
 </script>
