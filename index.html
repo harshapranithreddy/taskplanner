@@ -679,19 +679,13 @@ function renderConnList(){
   const mi=document.createElement('div');
   mi.className='conn-item mine-item'+(viewUid===me.uid?' active-view':'');
   mi.innerHTML='<div class="conn-avatar">'+esc(me.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(me.name)+'</span><span class="conn-badge">You</span>';
-  mi.addEventListener('click',()=>{
-    if(currentPage==='expenses'){expSwitchView(me.uid,me.name,false);}
-    else{switchView(me.uid,me.name,false);}
-  });
+  mi.addEventListener('click',()=>{switchView(me.uid,me.name,false);});
   list.appendChild(mi);
   connections.forEach(c=>{
     const item=document.createElement('div');
     item.className='conn-item'+(viewUid===c.uid?' active-view':'');
     item.innerHTML='<div class="conn-avatar">'+esc(c.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(c.name)+'</span><span class="conn-badge">View</span><button class="conn-remove" data-uid="'+c.uid+'" title="Remove"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>';
-    item.addEventListener('click',e=>{if(e.target.closest('.conn-remove'))return;
-      if(currentPage==='expenses'){expSwitchView(c.uid,c.name,true);}
-      else{switchView(c.uid,c.name,true);}
-    });
+    item.addEventListener('click',e=>{if(e.target.closest('.conn-remove'))return;switchView(c.uid,c.name,true);});
     item.querySelector('.conn-remove').addEventListener('click',e=>{e.stopPropagation();if(confirm('Remove '+c.name+"'s planner from your list?"))removeConnection(c.uid);});
     list.appendChild(item);
   });
