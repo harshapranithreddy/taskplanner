@@ -46,6 +46,20 @@ Changes sync live through Firestore listeners, so a task or expense you add show
 up immediately, and a planner shared with you updates as its owner edits it. The
 whole thing is two single HTML files with no build step.
 
+## Using it
+
+1. Open the app and create an account with your email, or sign in if you have one.
+2. Pick a day on the calendar and add tasks with the "Add a task" box. Give each
+   a priority, a due time or a note if you want, and tick it off when it's done.
+   The progress bar tracks your day.
+3. Open the Expense Tracker from the sidebar to log spending by category and see
+   your monthly total and where the money is going.
+4. To share your planner, open Invite Codes, enter the code of the person you
+   want to give access to, and press Share. They then see your planner read-only.
+   For them to share theirs back, they enter your code the same way.
+5. Everything saves and syncs automatically, so you can sign in on any device and
+   pick up where you left off.
+
 ## Security
 
 Because this is a real multi-user app on a shared database, access control is the
