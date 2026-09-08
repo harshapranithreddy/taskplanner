@@ -285,6 +285,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
               <button class="add-conn-btn" id="addCodeBtn">Share</button>
             </div>
             <div class="add-conn-err" id="addCodeErr"></div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.45">Enter someone's code to share your expenses with them.</div>
           </div>
           <div style="margin-bottom:14px">
             <div class="my-code-lbl">Sharing my expenses with</div>
@@ -296,6 +297,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
               <span class="my-code-val" id="myCodeVal">----</span>
               <button class="my-code-copy" id="copyCodeBtn">Copy</button>
             </div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.45">Others enter this to share their expenses with you.</div>
           </div>
         </div>
       </div>
@@ -810,7 +812,7 @@ function showToast(msg){
 }
 
 // sidebar collapse
-function toggleSb(){const sb=document.getElementById('sidebar'),ob=document.getElementById('openSbBtn'),cb=document.getElementById('collapseBtn');const isOpen=!sb.classList.contains('collapsed');sb.classList.toggle('collapsed',isOpen);ob.classList.toggle('hidden',!isOpen);cb.querySelector('svg').style.transform=isOpen?'rotate(180deg)':'';}
+function toggleSb(){const sb=document.getElementById('sidebar'),ob=document.getElementById('openSbBtn'),cb=document.getElementById('collapseBtn');const isOpen=!sb.classList.contains('collapsed');sb.classList.toggle('collapsed',isOpen);ob.style.display=isOpen?'flex':'none';cb.querySelector('svg').style.transform=isOpen?'rotate(180deg)':'';}
 document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
 
