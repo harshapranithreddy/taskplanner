@@ -386,11 +386,6 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2L4 6l4 4"/></svg>
         </button>
       </div>
-      <!-- Page switcher -->
-      <div class="page-nav">
-        <button class="page-btn active" id="pageTask">✓ Tasks</button>
-        <button class="page-btn" id="pageExp">$ Expenses</button>
-      </div>
       <div class="sb-date-label" id="sbDayLabel"></div>
       <div class="sb-date-big" id="sbDateBig"></div>
       <div class="sb-date-sub" id="sbDateSub"></div>
@@ -856,8 +851,6 @@ document.getElementById('inviteToggle').addEventListener('click',()=>{
 });
 document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
-document.getElementById('pageExp').addEventListener('click',()=>{location.href='expense.html';});
-document.getElementById('pageTask').addEventListener('click',()=>{});
 document.getElementById('exportBtn').addEventListener('click',exportDay);
 document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
 document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
