@@ -432,6 +432,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
               <button class="add-conn-btn" id="addCodeBtn">Share</button>
             </div>
             <div class="add-conn-err" id="addCodeErr"></div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.45">Enter someone's code to share your planner with them.</div>
           </div>
           <div style="margin-bottom:10px">
             <div class="my-code-lbl">Sharing my planner with</div>
@@ -443,6 +444,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
               <span class="my-code-val" id="myCodeVal">----</span>
               <button class="my-code-copy" id="copyCodeBtn">Copy</button>
             </div>
+            <div style="font-size:10.5px;color:var(--text3);margin-top:6px;line-height:1.45">Others enter this to share their planner with you.</div>
           </div>
         </div>
       </div>
@@ -854,6 +856,9 @@ document.getElementById('inviteToggle').addEventListener('click',()=>{
 });
 document.getElementById('collapseBtn').addEventListener('click',toggleSb);
 document.getElementById('openSbBtn').addEventListener('click',toggleSb);
+document.getElementById('pageExp').addEventListener('click',()=>{location.href='expense.html';});
+document.getElementById('pageTask').addEventListener('click',()=>{});
+document.getElementById('exportBtn').addEventListener('click',exportDay);
 document.getElementById('prevDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()-1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
 document.getElementById('nextDay').addEventListener('click',()=>{const d=parseKey(S.date);d.setDate(d.getDate()+1);S.date=fmtKey(d);syncCalToDate();subToDate(S.date);render();});
 document.getElementById('jumpBtn').addEventListener('click',()=>{S.date=todayKey();syncCalToDate();subToDate(S.date);render();});
