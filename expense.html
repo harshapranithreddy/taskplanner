@@ -15,6 +15,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -431,6 +432,9 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 <script>
 firebase.initializeApp({apiKey:"AIzaSyBeasVJq3ncaHeB-3iLDSOq3d89VQVPhts",authDomain:"planner-438ee.firebaseapp.com",projectId:"planner-438ee",storageBucket:"planner-438ee.firebasestorage.app",messagingSenderId:"19688161262",appId:"1:19688161262:web:b3b99ae4e52b58a3c818ff"});
 const auth=firebase.auth(),db=firebase.firestore();
+// App Check: paste your reCAPTCHA v3 site key (Firebase console > App Check), then turn on enforcement there.
+const APPCHECK_SITE_KEY='';
+if(APPCHECK_SITE_KEY){try{firebase.appCheck().activate(APPCHECK_SITE_KEY,true);}catch(e){console.warn('appcheck:',e);}}
 
 const EXP_CATS=[
   {id:'food',name:'Food & Drink',color:'#E67E22'},
@@ -492,7 +496,7 @@ auth.onAuthStateChanged(async user=>{
     viewUid=user.uid;viewName=name;isReadOnly=false;
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
-    db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(()=>{});
+    db.collection('directory').doc(code).set({uid:user.uid,name,code},{merge:true}).catch(()=>{});
     await loadSharing();
     renderConnList();renderShareList();
     document.getElementById('myCodeVal').textContent=me.code;
@@ -522,9 +526,9 @@ async function shareWithCode(code){
   if(!clean)return'Please enter a code.';
   if(clean===me.code)return"That's your own code!";
   try{
-    const snap=await db.collection('directory').where('code','==',clean).limit(1).get();
-    if(snap.empty)return'Code not found.';
-    const person=snap.docs[0].data();
+    const snap=await db.collection('directory').doc(clean).get();
+    if(!snap.exists)return'Code not found.';
+    const person=snap.data();
     if(myViewers.find(v=>v.uid===person.uid))return'Already sharing with them.';
     await db.collection('users').doc(me.uid).collection('viewers').doc(person.uid).set({viewerId:person.uid,viewerName:person.name||'User',ownerId:me.uid,ownerName:me.name,addedAt:firebase.firestore.FieldValue.serverTimestamp()});
     myViewers.push({uid:person.uid,name:person.name||'User'});return null;
