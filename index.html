@@ -428,10 +428,14 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
         <div class="invite-body" id="inviteBody">
           <div class="add-conn-wrap" style="margin-bottom:10px">
             <div class="add-conn-row">
-              <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter invite code" maxlength="9" autocomplete="off" spellcheck="false">
-              <button class="add-conn-btn" id="addCodeBtn">Add</button>
+              <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter a code to share" maxlength="9" autocomplete="off" spellcheck="false">
+              <button class="add-conn-btn" id="addCodeBtn">Share</button>
             </div>
             <div class="add-conn-err" id="addCodeErr"></div>
+          </div>
+          <div style="margin-bottom:10px">
+            <div class="my-code-lbl">Sharing my planner with</div>
+            <div id="sharedList"></div>
           </div>
           <div class="my-code-wrap" style="margin-bottom:0">
             <div class="my-code-lbl">Your invite code</div>
@@ -570,7 +574,7 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
 <script>
 firebase.initializeApp({apiKey:"AIzaSyBeasVJq3ncaHeB-3iLDSOq3d89VQVPhts",authDomain:"planner-438ee.firebaseapp.com",projectId:"planner-438ee",storageBucket:"planner-438ee.firebasestorage.app",messagingSenderId:"19688161262",appId:"1:19688161262:web:b3b99ae4e52b58a3c818ff"});
 const auth=firebase.auth(),db=firebase.firestore();
-let me=null,connections=[],viewUid=null,viewName='',isReadOnly=false;
+let me=null,sharedWithMe=[],myViewers=[],viewUid=null,viewName='',isReadOnly=false;
 let unsubTasks=null,cachedTasks={},undoBuf=null,toastTimer=null,activeKb=null,movingTask=null;
 const S={date:todayKey(),newPri:'none',fltSt:'all',fltPri:null,compOpen:false,calY:0,calM:0,sbOpen:true,settings:{defaultPriority:'none',defaultSort:'added',weekStart:1,showCompleted:false}};
 function todayKey(){return fmtKey(new Date())}
@@ -620,37 +624,48 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('appShell').classList.remove('hidden');
     await db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true});
     loadSettings();S.newPri=S.settings.defaultPriority||'none';S.compOpen=S.settings.showCompleted||false;syncCalToDate();
-    await loadConnections();await prefetchTasks(viewUid);subToDate(S.date);render();
+    await loadSharing();await prefetchTasks(viewUid);subToDate(S.date);render();
     hideSplash();
   }else{
-    me=null;connections=[];
+    me=null;sharedWithMe=[];myViewers=[];
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appShell').classList.add('hidden');
     hideSplash();
     if(unsubTasks){unsubTasks();unsubTasks=null;}cachedTasks={};
   }
 });
-async function loadConnections(){try{const snap=await db.collection('users').doc(me.uid).collection('connections').get();connections=snap.docs.map(d=>d.data());}catch(e){console.warn('loadConn:',e);}}
-async function addConnection(code){
+async function loadSharing(){
+  // Planners other people have shared WITH me (owner-created grants, found via collection group query).
+  try{
+    const snap=await db.collectionGroup('viewers').where('viewerId','==',me.uid).get();
+    sharedWithMe=snap.docs.map(d=>d.data()).map(v=>({uid:v.ownerId,name:v.ownerName||'User'})).filter(o=>o.uid&&o.uid!==me.uid);
+  }catch(e){console.warn('loadShared:',e);sharedWithMe=[];}
+  // People I have shared MY planner with.
+  try{
+    const snap2=await db.collection('users').doc(me.uid).collection('viewers').get();
+    myViewers=snap2.docs.map(d=>d.data()).map(v=>({uid:v.viewerId,name:v.viewerName||'User'}));
+  }catch(e){console.warn('loadViewers:',e);myViewers=[];}
+}
+async function shareWithCode(code){
   const clean=code.trim().toUpperCase();
   if(!clean)return'Please enter a code.';
   if(clean===me.code)return"That's your own code!";
-  if(connections.find(c=>c.code===clean))return'Already added.';
   try{
     const snap=await db.collection('directory').where('code','==',clean).limit(1).get();
     if(snap.empty)return'Code not found. Check and try again.';
     const person=snap.docs[0].data();
-    await db.collection('users').doc(me.uid).collection('connections').doc(person.uid).set(person);
-    connections.push(person);return null;
-  }catch(e){console.warn('addConn:',e);return'Something went wrong.';}
+    if(myViewers.find(v=>v.uid===person.uid))return'Already sharing with them.';
+    // Grant lives in MY space, so the rules can trust it. Only I can create it.
+    await db.collection('users').doc(me.uid).collection('viewers').doc(person.uid).set({viewerId:person.uid,viewerName:person.name||'User',ownerId:me.uid,ownerName:me.name,addedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    myViewers.push({uid:person.uid,name:person.name||'User'});return null;
+  }catch(e){console.warn('share:',e);return'Something went wrong.';}
 }
-async function removeConnection(uid){
+async function removeViewer(uid){
   try{
-    await db.collection('users').doc(me.uid).collection('connections').doc(uid).delete();
-    connections=connections.filter(c=>c.uid!==uid);
-    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;cachedTasks={};await prefetchTasks(viewUid);subToDate(S.date);}
-    renderConnList();renderViewCtrl();
-  }catch(e){console.warn('removeConn:',e);}
+    await db.collection('users').doc(me.uid).collection('viewers').doc(uid).delete();
+    myViewers=myViewers.filter(v=>v.uid!==uid);
+    renderShareList();
+  }catch(e){console.warn('revoke:',e);}
 }
 function tasksCol(uid){return db.collection('users').doc(uid).collection('tasks')}
 async function prefetchTasks(uid){try{const snap=await tasksCol(uid).get();const by={};snap.docs.forEach(d=>{const t=d.data();if(!by[t.dateKey])by[t.dateKey]=[];by[t.dateKey].push(t);});cachedTasks=by;}catch(e){console.warn('prefetch:',e);}}
@@ -664,7 +679,7 @@ async function switchView(uid,name,ro){
   await prefetchTasks(uid);subToDate(S.date);
   renderConnList();renderViewCtrl();renderProgress();renderTasks();renderCarryover();
 }
-function render(){renderSidebar();renderCal();renderCarryover();renderProgress();renderTasks();syncSettings();}
+function render(){renderSidebar();renderShareList();renderCal();renderCarryover();renderProgress();renderTasks();syncSettings();}
 function renderSidebar(){
   renderConnList();renderViewCtrl();
   const d=parseKey(S.date),days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -681,13 +696,23 @@ function renderConnList(){
   mi.innerHTML='<div class="conn-avatar">'+esc(me.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(me.name)+'</span><span class="conn-badge">You</span>';
   mi.addEventListener('click',()=>{switchView(me.uid,me.name,false);});
   list.appendChild(mi);
-  connections.forEach(c=>{
+  sharedWithMe.forEach(c=>{
     const item=document.createElement('div');
     item.className='conn-item'+(viewUid===c.uid?' active-view':'');
-    item.innerHTML='<div class="conn-avatar">'+esc(c.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(c.name)+'</span><span class="conn-badge">View</span><button class="conn-remove" data-uid="'+c.uid+'" title="Remove"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>';
-    item.addEventListener('click',e=>{if(e.target.closest('.conn-remove'))return;switchView(c.uid,c.name,true);});
-    item.querySelector('.conn-remove').addEventListener('click',e=>{e.stopPropagation();if(confirm('Remove '+c.name+"'s planner from your list?"))removeConnection(c.uid);});
+    item.innerHTML='<div class="conn-avatar">'+esc(c.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(c.name)+'</span><span class="conn-badge">View</span>';
+    item.addEventListener('click',()=>{switchView(c.uid,c.name,true);});
     list.appendChild(item);
+  });
+}
+function renderShareList(){
+  const el=document.getElementById('sharedList');if(!el)return;
+  if(!myViewers.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:2px 0">Not sharing with anyone yet.</div>';return;}
+  el.innerHTML='';
+  myViewers.forEach(v=>{
+    const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px;color:var(--text2)';
+    row.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(v.name)+'</span><button style="border:1px solid var(--border);background:var(--bg);border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;color:var(--text2);flex-shrink:0">Revoke</button>';
+    row.querySelector('button').addEventListener('click',()=>{if(confirm('Stop sharing your planner with '+v.name+'?'))removeViewer(v.uid);});
+    el.appendChild(row);
   });
 }
 function renderViewCtrl(){
@@ -848,10 +873,10 @@ document.getElementById('coBtn').addEventListener('click',doCarryOver);
 document.getElementById('coDismiss').addEventListener('click',()=>{setDismissed(S.date);document.getElementById('coBanner').style.display='none';});
 document.getElementById('addCodeBtn').addEventListener('click',async()=>{
   const input=document.getElementById('addCodeInput'),errEl=document.getElementById('addCodeErr'),btn=document.getElementById('addCodeBtn');
-  errEl.textContent='';btn.disabled=true;btn.textContent='Adding...';
-  const err=await addConnection(input.value);
-  btn.disabled=false;btn.textContent='Add';
-  if(err){errEl.textContent=err;}else{input.value='';renderConnList();showToast('Added successfully!');}
+  errEl.textContent='';btn.disabled=true;btn.textContent='Sharing...';
+  const err=await shareWithCode(input.value);
+  btn.disabled=false;btn.textContent='Share';
+  if(err){errEl.textContent=err;}else{input.value='';renderShareList();showToast('Planner shared!');}
 });
 document.getElementById('addCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('addCodeBtn').click();});
 document.getElementById('copyCodeBtn').addEventListener('click',()=>{
