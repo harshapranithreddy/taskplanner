@@ -281,10 +281,14 @@ body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--t
         <div class="invite-body" id="inviteBody">
           <div class="add-conn-wrap">
             <div class="add-conn-row">
-              <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter invite code" maxlength="9" autocomplete="off" spellcheck="false">
-              <button class="add-conn-btn" id="addCodeBtn">Add</button>
+              <input type="text" class="add-conn-input" id="addCodeInput" placeholder="Enter a code to share" maxlength="9" autocomplete="off" spellcheck="false">
+              <button class="add-conn-btn" id="addCodeBtn">Share</button>
             </div>
             <div class="add-conn-err" id="addCodeErr"></div>
+          </div>
+          <div style="margin-bottom:14px">
+            <div class="my-code-lbl">Sharing my expenses with</div>
+            <div id="sharedList"></div>
           </div>
           <div class="my-code-wrap">
             <div class="my-code-lbl">Your invite code</div>
@@ -440,7 +444,7 @@ const EXP_CATS=[
 ];
 function getCat(id){return EXP_CATS.find(c=>c.id===id)||EXP_CATS[EXP_CATS.length-1];}
 
-let me=null,connections=[],viewUid=null,viewName='',isReadOnly=false;
+let me=null,sharedWithMe=[],myViewers=[],viewUid=null,viewName='',isReadOnly=false;
 let expMonth={y:new Date().getFullYear(),m:new Date().getMonth()};
 let expCache={};   // uid -> monthKey -> expenses[]
 let expSubs={};    // uid -> monthKey -> unsub
@@ -487,40 +491,48 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('appShell').classList.remove('hidden');
     db.collection('directory').doc(user.uid).set({uid:user.uid,name,code},{merge:true}).catch(()=>{});
-    await loadConnections();
-    renderConnList();
+    await loadSharing();
+    renderConnList();renderShareList();
     document.getElementById('myCodeVal').textContent=me.code;
     subMonth();
     renderAll();
     hideSplash();
   }else{
-    me=null;connections=[];
+    me=null;sharedWithMe=[];myViewers=[];
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('appShell').classList.add('hidden');
     hideSplash();
   }
 });
 
-async function loadConnections(){try{const snap=await db.collection('users').doc(me.uid).collection('connections').get();connections=snap.docs.map(d=>d.data());}catch(e){console.warn(e);}}
-async function addConnection(code){
+async function loadSharing(){
+  try{
+    const snap=await db.collectionGroup('viewers').where('viewerId','==',me.uid).get();
+    sharedWithMe=snap.docs.map(d=>d.data()).map(v=>({uid:v.ownerId,name:v.ownerName||'User'})).filter(o=>o.uid&&o.uid!==me.uid);
+  }catch(e){console.warn('loadShared:',e);sharedWithMe=[];}
+  try{
+    const snap2=await db.collection('users').doc(me.uid).collection('viewers').get();
+    myViewers=snap2.docs.map(d=>d.data()).map(v=>({uid:v.viewerId,name:v.viewerName||'User'}));
+  }catch(e){console.warn('loadViewers:',e);myViewers=[];}
+}
+async function shareWithCode(code){
   const clean=code.trim().toUpperCase();
   if(!clean)return'Please enter a code.';
   if(clean===me.code)return"That's your own code!";
-  if(connections.find(c=>c.code===clean))return'Already added.';
   try{
     const snap=await db.collection('directory').where('code','==',clean).limit(1).get();
     if(snap.empty)return'Code not found.';
     const person=snap.docs[0].data();
-    await db.collection('users').doc(me.uid).collection('connections').doc(person.uid).set(person);
-    connections.push(person);return null;
+    if(myViewers.find(v=>v.uid===person.uid))return'Already sharing with them.';
+    await db.collection('users').doc(me.uid).collection('viewers').doc(person.uid).set({viewerId:person.uid,viewerName:person.name||'User',ownerId:me.uid,ownerName:me.name,addedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    myViewers.push({uid:person.uid,name:person.name||'User'});return null;
   }catch(e){return'Something went wrong.';}
 }
-async function removeConnection(uid){
+async function removeViewer(uid){
   try{
-    await db.collection('users').doc(me.uid).collection('connections').doc(uid).delete();
-    connections=connections.filter(c=>c.uid!==uid);
-    if(viewUid===uid){viewUid=me.uid;viewName=me.name;isReadOnly=false;}
-    renderConnList();renderViewCtrl();
+    await db.collection('users').doc(me.uid).collection('viewers').doc(uid).delete();
+    myViewers=myViewers.filter(v=>v.uid!==uid);
+    renderShareList();
   }catch(e){console.warn(e);}
 }
 
@@ -531,13 +543,23 @@ function renderConnList(){
   mi.innerHTML='<div class="conn-avatar">'+esc(me.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(me.name)+'</span><span class="conn-badge">You</span>';
   mi.addEventListener('click',()=>{switchView(me.uid,me.name,false);});
   list.appendChild(mi);
-  connections.forEach(c=>{
+  sharedWithMe.forEach(c=>{
     const item=document.createElement('div');
     item.className='conn-item'+(viewUid===c.uid?' active-view':'');
-    item.innerHTML='<div class="conn-avatar">'+esc(c.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(c.name)+'</span><span class="conn-badge">View</span><button class="conn-remove" title="Remove"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>';
-    item.addEventListener('click',e=>{if(e.target.closest('.conn-remove'))return;switchView(c.uid,c.name,true);});
-    item.querySelector('.conn-remove').addEventListener('click',e=>{e.stopPropagation();if(confirm('Remove '+c.name+"'s planner?"))removeConnection(c.uid);});
+    item.innerHTML='<div class="conn-avatar">'+esc(c.name.charAt(0).toUpperCase())+'</div><span class="conn-name">'+esc(c.name)+'</span><span class="conn-badge">View</span>';
+    item.addEventListener('click',()=>{switchView(c.uid,c.name,true);});
     list.appendChild(item);
+  });
+}
+function renderShareList(){
+  const el=document.getElementById('sharedList');if(!el)return;
+  if(!myViewers.length){el.innerHTML='<div style="font-size:11px;color:var(--text3);padding:2px 0">Not sharing with anyone yet.</div>';return;}
+  el.innerHTML='';
+  myViewers.forEach(v=>{
+    const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;font-size:12px;color:var(--text2)';
+    row.innerHTML='<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(v.name)+'</span><button style="border:1px solid var(--border);background:var(--bg);border-radius:6px;font-size:11px;padding:3px 8px;cursor:pointer;color:var(--text2);flex-shrink:0">Revoke</button>';
+    row.querySelector('button').addEventListener('click',()=>{if(confirm('Stop sharing your expenses with '+v.name+'?'))removeViewer(v.uid);});
+    el.appendChild(row);
   });
 }
 
@@ -796,10 +818,10 @@ document.getElementById('openSbBtn').addEventListener('click',toggleSb);
 document.getElementById('inviteToggle').addEventListener('click',()=>{document.getElementById('inviteToggle').classList.toggle('open');document.getElementById('inviteBody').classList.toggle('open');});
 document.getElementById('addCodeBtn').addEventListener('click',async()=>{
   const input=document.getElementById('addCodeInput'),errEl=document.getElementById('addCodeErr'),btn=document.getElementById('addCodeBtn');
-  errEl.textContent='';btn.disabled=true;btn.textContent='Adding...';
-  const err=await addConnection(input.value);
-  btn.disabled=false;btn.textContent='Add';
-  if(err){errEl.textContent=err;}else{input.value='';renderConnList();showToast('Added!');}
+  errEl.textContent='';btn.disabled=true;btn.textContent='Sharing...';
+  const err=await shareWithCode(input.value);
+  btn.disabled=false;btn.textContent='Share';
+  if(err){errEl.textContent=err;}else{input.value='';renderShareList();showToast('Shared!');}
 });
 document.getElementById('addCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('addCodeBtn').click();});
 document.getElementById('copyCodeBtn').addEventListener('click',()=>{
